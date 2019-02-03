@@ -1,5 +1,71 @@
-classes:
+How to structure neuro project code
 
-1. model
+Models abstract class 
+- logpdf of log p(x,z)
+- Sample
+- Latent variables (dictionary?)
+- Model parameters (dictionary?)
+- Inference choice
+- “Forward” is just a call to the inference object.objective() func 
+- - this allows to easily call backward on the class to get gradients of the objective. 
+Dynamics models inherit this abstraction
 
-2. inference
+LDS model class
+- specify latent vars 
+- Specify model params 
+- Specify log p(x,z)
+- Specify sample
+- Given above, forward should largely just inherit the models abstract class forward func. It takes a specific inference objective func which takes as input the model specific latent variables, model params, log p(x,z)
+
+LDS with logistic regression evidence 
+- ideally inherits a Gaussian transitions class which above LDS class also does?
+
+Non linear DS model class
+
+
+Inference classes
+
+BBVI 
+Specify BBVI spec params
+- kl annealing option according to schedule 
+- Entropy params and entropy func 
+- Alternative formulations of ELBO
+- Objective()
+- — takes as input latent variables, p(x,z) model params, whatever is need to evaluate objective
+- —- of course these vbles are instantiated in the model class which is passed in to the inference class as specific arguments 
+
+Importance sampling class OR IWAE bound? Allows for NN amortized inference. Now SMCWAE will be easily to write as an extension of IWAE.
+
+SMC class
+- should inherit IS class + reweighting 
+
+VSMC class 
+- should inherit SMC class + VI specific things. Maybe even class a generic VI class (ideal).
+- This class can instantiate neural networks, whatever is needed to specify the objective function.
+
+Smc with NN proposal from Zoubins group 
+
+BBVI for state space models (archer)
+
+
+
+———————————
+
+Once we have dynamics model with inference, we can do active learning / bayes opt on new data. This function will now take in a dynamics model class which takes in an inference object. This new class might have its own objective func and given that it’s a func of the dynamics model back propping through all of it is easy!
+
+
+———- 
+
+Look into where people specify optimization classes. Should they be instantiatwd within the model class? You could create an SGD or Adam object within a spec model class and its associated parameters. This might make it easy to compare across different versions of the same model. In other words, we won’t have a bunch of floating lines of code specifying rando optim objects in a train iters func but now it’ll all be tied to the instantiation of specific model classes.
+
+Write a better train iters func. How to do mini batching........= open question. For now, don’t worry about this. Maybe we can say it’s menoryless with 100 sample chunks? See Matt Johnson’s work on this.
+
+
+
+—————
+
+Implement all of this for LDS (latent variables + model params)
+
+Have an exact inference option for LDS. Given the params computes it exactly.
+
+And canonical nonlinear LDS.
