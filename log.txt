@@ -1,3 +1,32 @@
+2.7.18
+AGENDA:
+
+	- use torch distributions .entropy func 
+	- try using rsample for reparameterization gradients (pathwise esimator)
+	- if works, super nice b/c we can easily use multivariate normal without having to worry about computational issues.
+
+	- does the above work for the log reg lds model?
+	- does this work for lds with a structured vi model
+		- different parameterizations
+			- full covariance
+			- diagonal plus low rank
+			- tridiagonal covariance (e.g. ar-1 model)
+		- do these families help with better model param
+			estimation? does it help with var mean estimation?
+
+
+2.6.18
+	- so far, MAP and Mean-field posteroir inference work well for LDS and Log reg lds (less well for second)
+	-for LDS, conditioned on correct latents, can compute map estimate of transition and obs scale perfectly
+	- for MFVI, we can correctly estimate model parameters when conditioned on previously estimated variational posterior which was estimated by conditioning on true model parameters
+		- we can properly estimate these model parameters regardless of where we initialize
+			the transition and obs scale (3 orders of magnitude bigger and smaller)
+	- MFVI: joint estimation of variational and model parameters leads to very similar variational params with transition_scale=0.13 and obs_scale=0.08 where true=0.1.
+		- mean(var_scale) = 0.0608 versus 0.057 for "true" variational posterior.
+		- does this explain discrepancy?
+		- results are robust to initialization and converges to same model params.
+
+
 2.4.18
 
 	convo with rpa
