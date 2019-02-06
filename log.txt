@@ -1,0 +1,25 @@
+2.4.18
+
+	convo with rpa
+		- problem with mean field fully factorized approach is it underestimated joint posterior correlations
+		- need a richer posterior approximation 
+		- spoke to ryan about amortization vs richness of posterior
+		- conclusion: parameterizing with rnn doesn't help bc its a deterministic computation - we need randomness 
+		- try AR-1, some covariance structure, hmm
+
+	agenda:
+		- implement new model class with nonlinear transition matrix
+			- try a simpler nonlinear transition model.
+				- can we recover correct model parameters?
+		- improve vi
+			- compute posterior mean, variances and model parameters for lds and log reg
+
+	- add python special key that lets you break out of optimization but not cancel program
+
+
+
+2.3.18
+	- wrote model class
+	- wrote lds, log_reg_lds
+	- wrote VI inference class
+	- implemented above models with gradient descent for map estimation

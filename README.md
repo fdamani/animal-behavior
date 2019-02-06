@@ -1,2 +1,2 @@
 # animal-behavior
-adddnimal learning rules project.
+animal learning rules project.

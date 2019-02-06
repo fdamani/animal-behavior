@@ -1,4 +1,4 @@
-How to structure neuro project code
+lxHow to structure neuro project code
 
 Models abstract class 
 - logpdf of log p(x,z)

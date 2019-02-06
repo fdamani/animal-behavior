@@ -7,6 +7,7 @@ import time
 import sys
 import os
 import numpy as np
+import math
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
@@ -149,83 +150,31 @@ class VI(object):
 		self.model = model
 		self.num_samples = num_samples
 
-	def unpack_params(params, T):
-		loc, log_scale = params[0:T], params[T:]
+	def unpack_params(self, params, T):
+		loc, log_scale = params[0], params[1]
 		return loc, log_scale
 
-	def q_sample(mean, log_scale):
+	def q_sample(self, mean, log_scale):
 		T = mean.size(0)
-		Z = torch.randn(self.num_samples, T)
+		Z = torch.randn(self.num_samples, T, device=device)
 		samples = Z * torch.exp(log_scale) + mean
 		return samples
 
-	def gaussian_entropy(log_scale):
+	def gaussian_entropy(self, log_scale):
 		D = log_scale.size(0)
-		return 0.5 * D * (1.0 + np.log(2*np.pi)) + torch.sum(log_scale)
+		return 0.5 * D * (1.0 + math.log(2*math.pi)) + torch.sum(log_scale)
 
 	def forward(self, x, var_params):
 		T = x.size(0)
-		loc, log_scale = unpack_params(var_params, T)
-		samples = self.q_samples(loc, log_scale)
-		data_terms = []
-		for sx in samples:
-			data_terms.append(self.model.logjoint(x, sx))
-		data_term = np.mean(data_term)
+		loc, log_scale = self.unpack_params(var_params, T)
+		samples = self.q_sample(loc, log_scale)
+		data_terms = torch.empty(self.num_samples, device=device)
+		for i in range(len(samples)):
+			data_terms[i] = self.model.logjoint(x, samples[i])
+		data_term = torch.mean(data_terms)
 		entropy = self.gaussian_entropy(log_scale)
-
 		return (data_term + entropy)
 
 def print_memory():
     print("memory usage: ", (process.memory_info().rss)/(1e9))
 
-if __name__ == '__main__':
-
-	lds = LogReg_LDS()
-	T = 2000
-	latents, obs = lds.sample(T)
-	obs = torch.tensor(obs, device=device)
-	latent_mean = torch.rand(T, requires_grad = True, device=device)
-	lr = 0.001
-	optimizer = torch.optim.Adam([latent_mean], lr = lr)
-	outputs = []
-	for t in range(10):
-		optimizer.zero_grad()
-		output = -lds.forward(obs, latent_mean)
-		outputs.append(output.item())
-		output.backward()
-		optimizer.step()
-		if t % 500 == 0:
-			print 'iter: ', t, ' output: ', output.item(), ' norm: ', np.linalg.norm(np.abs(latent_mean.detach().cpu().numpy() - latents))
-	plt.plot(outputs)
-	plt.savefig('map_loss.png')
-
-	# variational inference
-	vi = VI(lds, num_samples=10)
-	var_mean = torch.rand(T, requires_grad=True, device=device)
-	embed()
-	################## fix initializaition -> cant optimize non leaf node
-	var_log_scale = torch.log(torch.exp(torch.rand(T, requires_grad=True, device=device)))
-	var_params = [var_mean, var_log_scale]
-	optimizer = torch.optim.Adam(var_params, lr = lr)
-	outputs = []
-	for t in range(10):
-		optimizer.zero_grad()
-		output = -vi.forward(obs, var_params)
-		outputs.append(output.item())
-		output.backward()
-		optimizer.step()
-		if t % 500 == 0:
-			print 'iter: ', t, ' output: ', output.item() #, ' norm: ', np.linalg.norm(np.abs(latent_mean.detach().cpu().numpy() - latents))
-	
-
-	fig = plt.figure()
-	plt.plot(outputs)
-	plt.savefig('elbo_loss.png')
-
-
-	fig = plt.figure()
-	plt.plot(np.array(latents))
-	plt.plot(latent_mean.detach().cpu().numpy())
-	plt.plot(var_mean.detach().cpu().numpy())
-	plt.savefig('latent_traj.png')
-	embed()
