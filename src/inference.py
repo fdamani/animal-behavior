@@ -88,7 +88,7 @@ class StructuredVIFullCovariance(object):
 		self.model = model
 		self.num_samples = num_samples
 
-	def unpack_params(self, params, T):
+	def unpack_var_params(self, params, T):
 		loc, log_scale = params[0], params[1]
 		return loc, log_scale
 
@@ -105,7 +105,10 @@ class StructuredVIFullCovariance(object):
 	def forward(self, x, var_params, model_params):
 		T = x.size(0)
 		loc, log_scale = self.unpack_var_params(var_params, T)
-		var_dist = MultivariateNormal(loc, torch.exp(log_scale))
+		cov = torch.exp(log_scale)**2
+		cov = cov.reshape(T, T)
+		embed()
+		var_dist = MultivariateNormal(loc, cov)
 		samples = var_dist.rsample(torch.Size((self.num_samples,)))
 		# samples = self.q_sample(loc, log_scale)
 		data_terms = torch.empty(self.num_samples, device=device)

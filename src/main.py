@@ -18,7 +18,7 @@ from torch.distributions import Normal, Bernoulli
 import models
 from models import LDS, LogReg_LDS
 import inference
-from inference import MeanFieldVI, Map
+from inference import Map, MeanFieldVI, StructuredVIFullCovariance
 import psutil
 process = psutil.Process(os.getpid())
 
@@ -32,7 +32,8 @@ if __name__ == '__main__':
 
 	# lds = LogReg_LDS()
 	lds = LDS()
-	T = 2000
+	# T = 2000
+	T = 300
 	latents, obs = lds.sample(T)
 
 	## params
@@ -75,13 +76,35 @@ if __name__ == '__main__':
 
 
 	# variational inference
-	vi = MeanFieldVI(lds, num_samples=1)
+	A = np.random.rand(T,T)
+
+	# initialize cov
+	# A = A*A.T
+
+
+	# compute empirical covariance of true latents for init
+	# initialize log scales 
+	# figure out how to go from vector to matrix and back
+
+
+	# vi = MeanFieldVI(lds, num_samples=1)
+	vi = StructuredVIFullCovariance(lds, num_samples=1)
 	vi_params_grad = True
-	model_params_grad = True
+	model_params_grad = False
+	mean_field = False
 	diff_params = []
 	if vi_params_grad:
 		var_mean = torch.randn(T, requires_grad=True, device=device)
-		var_log_scale = torch.tensor(torch.log(torch.rand(T)), requires_grad=True, device=device)
+		if mean_field:
+			var_log_scale = torch.tensor(torch.log(torch.rand(T)), requires_grad=True, device=device)
+		else:
+			A = torch.rand(T,T)
+			A = torch.matmul(A, torch.t(A))
+			A = A / torch.mean(torch.diag(A))
+			A = torch.clamp_max(A, 1)
+
+			### fix this so its passes MVN cov checks
+			var_log_scale = torch.tensor(torch.log(A.flatten()), requires_grad=True, device=device)
 		diff_params.extend([var_mean, var_log_scale])
 	else:
 		var_mean = torch.tensor(np.load('../data/var_mean.npy'), requires_grad=False, device=device)
@@ -90,7 +113,7 @@ if __name__ == '__main__':
 	var_params = [var_mean, var_log_scale]
 	
 	# model params
-	init_scale = .001 # 0.01 # torch.rand(1)
+	init_scale = .1 # 0.01 # torch.rand(1)
 	transition_log_scale = torch.tensor([math.log(init_scale)], 
 		requires_grad=model_params_grad, device=device)
 	obs_log_scale = torch.tensor([math.log(init_scale)], 
