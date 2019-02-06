@@ -58,12 +58,16 @@ class LDS(object):
 			obs.append(obs_cpd.sample())
 		return latents, obs
 
-	def logjoint(self, x, latent_mean):
+	def logjoint(self, x, latent_mean, model_params):
 		'''
 		input: x (observations T x D)
 		input: latent_mean
 		return logpdf under the model parameters
 		'''
+		transition_log_scale, obs_log_scale = model_params[0], model_params[1]
+		self.transition_scale = torch.exp(transition_log_scale)
+		self.obs_scale = torch.exp(obs_log_scale)
+
 		T = x.size(0)
 		# init log prior
 		init_latent_logpdf = Normal(self.init_latent_loc, self.init_latent_scale)
@@ -78,16 +82,6 @@ class LDS(object):
 		logprob += torch.sum(obs_logpdf.log_prob(x))
 
 		return logprob
-
-	def forward(self, x, latent_mean):
-		'''
-		forward should define whatever objective function we want to take gradients with respect to
-		examples:
-		1) MAP/MLE: logpdf
-		2) VI: elbo
-		'''
-		return self.logjoint(x, latent_mean)
-
 
 class LogReg_LDS(object):
 	def __init__(self):
@@ -135,45 +129,6 @@ class LogReg_LDS(object):
 		logprob += torch.sum(obs_logpdf.log_prob(x))
 
 		return logprob
-
-	def forward(self, x, latent_mean):
-		'''
-		forward should define whatever objective function we want to take gradients with respect to
-		examples:
-		1) MAP/MLE: logpdf
-		2) VI: elbo
-		'''
-		return self.logjoint(x, latent_mean)
-
-class VI(object):
-	def __init__(self, model, num_samples):
-		self.model = model
-		self.num_samples = num_samples
-
-	def unpack_params(self, params, T):
-		loc, log_scale = params[0], params[1]
-		return loc, log_scale
-
-	def q_sample(self, mean, log_scale):
-		T = mean.size(0)
-		Z = torch.randn(self.num_samples, T, device=device)
-		samples = Z * torch.exp(log_scale) + mean
-		return samples
-
-	def gaussian_entropy(self, log_scale):
-		D = log_scale.size(0)
-		return 0.5 * D * (1.0 + math.log(2*math.pi)) + torch.sum(log_scale)
-
-	def forward(self, x, var_params):
-		T = x.size(0)
-		loc, log_scale = self.unpack_params(var_params, T)
-		samples = self.q_sample(loc, log_scale)
-		data_terms = torch.empty(self.num_samples, device=device)
-		for i in range(len(samples)):
-			data_terms[i] = self.model.logjoint(x, samples[i])
-		data_term = torch.mean(data_terms)
-		entropy = self.gaussian_entropy(log_scale)
-		return (data_term + entropy)
 
 def print_memory():
     print("memory usage: ", (process.memory_info().rss)/(1e9))
