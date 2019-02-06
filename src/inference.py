@@ -14,7 +14,7 @@ import torch.nn.functional as F
 from torch.autograd import Variable, grad
 from torch.nn import Linear, Module, MSELoss
 from torch.optim import SGD, Adam
-from torch.distributions import Normal, Bernoulli
+from torch.distributions import Normal, Bernoulli, MultivariateNormal
 
 import psutil
 process = psutil.Process(os.getpid())
@@ -52,7 +52,7 @@ class MeanFieldVI(object):
 		D = log_scale.size(0)
 		return 0.5 * D * (1.0 + math.log(2*math.pi)) + torch.sum(log_scale)
 
-	def forward(self, x, var_params, model_params):
+	def forwardOLD(self, x, var_params, model_params):
 		T = x.size(0)
 		loc, log_scale = self.unpack_var_params(var_params, T)
 		samples = self.q_sample(loc, log_scale)
@@ -63,6 +63,18 @@ class MeanFieldVI(object):
 		entropy = self.gaussian_entropy(log_scale)
 		return (data_term + entropy)
 
+	def forward(self, x, var_params, model_params):
+		T = x.size(0)
+		loc, log_scale = self.unpack_var_params(var_params, T)
+		var_dist = Normal(loc, torch.exp(log_scale))
+		samples = var_dist.rsample(torch.Size((self.num_samples,)))
+		# samples = self.q_sample(loc, log_scale)
+		data_terms = torch.empty(self.num_samples, device=device)
+		for i in range(len(samples)):
+			data_terms[i] = self.model.logjoint(x, samples[i], model_params)
+		data_term = torch.mean(data_terms)
+		entropy = torch.sum(var_dist.entropy())
+		return (data_term + entropy)
 
 class StructuredVIFullCovariance(object):
 	'''
@@ -90,13 +102,15 @@ class StructuredVIFullCovariance(object):
 		D = log_scale.size(0)
 		return 0.5 * D * (1.0 + math.log(2*math.pi)) + torch.sum(log_scale)
 
-	def forward(self, x, var_params):
+	def forward(self, x, var_params, model_params):
 		T = x.size(0)
-		loc, log_scale = self.unpack_params(var_params, T)
-		samples = self.q_sample(loc, log_scale)
+		loc, log_scale = self.unpack_var_params(var_params, T)
+		var_dist = MultivariateNormal(loc, torch.exp(log_scale))
+		samples = var_dist.rsample(torch.Size((self.num_samples,)))
+		# samples = self.q_sample(loc, log_scale)
 		data_terms = torch.empty(self.num_samples, device=device)
 		for i in range(len(samples)):
-			data_terms[i] = self.model.logjoint(x, samples[i])
+			data_terms[i] = self.model.logjoint(x, samples[i], model_params)
 		data_term = torch.mean(data_terms)
-		entropy = self.gaussian_entropy(log_scale)
+		entropy = torch.sum(var_dist.entropy())
 		return (data_term + entropy)
