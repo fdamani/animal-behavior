@@ -1,10 +1,7 @@
 2.7.18
 AGENDA:
 
-	- use torch distributions .entropy func 
-	- try using rsample for reparameterization gradients (pathwise esimator)
-	- if works, super nice b/c we can easily use multivariate normal without having to worry about computational issues.
-
+	- variational cov matrix initialization
 	- does the above work for the log reg lds model?
 	- does this work for lds with a structured vi model
 		- different parameterizations
