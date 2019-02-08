@@ -109,13 +109,15 @@ class LogReg_LDS(object):
 			obs.append(obs_cpd.sample())
 		return latents, obs
 
-	def logjoint(self, x, latent_mean):
+	def logjoint(self, x, latent_mean, model_params):
 		'''
 		input: x (observations T x D)
 		input: latent_mean
 		return logpdf under the model parameters
 		'''
 		T = x.size(0)
+		transition_log_scale = model_params[0]
+		self.transition_scale = torch.exp(transition_log_scale)
 		# init log prior
 		init_latent_logpdf = Normal(self.init_latent_loc, self.init_latent_scale)
 		# transitions
