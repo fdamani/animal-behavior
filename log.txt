@@ -12,6 +12,16 @@ AGENDA:
 			estimation? does it help with var mean estimation?
 
 
+	- LDS
+		- joint optimization of variational parameters and model parameters works well
+		- adding a band of var scale params below diagonal improves performance and gets us closer to true model params
+
+	- logistic reg LDS
+		- joint optimization of model params and var params does not work (they both converge at solutions far away from true)
+		- if i set model params to true values, optimize var params, then set var params to converged values and optimize model
+			params i get the right solution. 
+		- one solution: coordinate procedure, but kind of annoying. what are best practices for joint optimization?
+
 2.6.18
 	- so far, MAP and Mean-field posteroir inference work well for LDS and Log reg lds (less well for second)
 	-for LDS, conditioned on correct latents, can compute map estimate of transition and obs scale perfectly
