@@ -35,46 +35,59 @@ def bernoulli(param):
 	return Bernoulli(param)
 
 class LDS(object):
-	def __init__(self):
+	def __init__(self, 
+				 grad_model_params=False, 
+				 init_prior=(0.0, 0.1),
+				 transition_scale=0.1,
+				 obs_scale=0.1):
 		# initialize parameters
-		self.init_latent_loc = 0.0
-		self.init_latent_scale = 0.1
-		self.transition_scale = 0.1
-		self.obs_scale = 0.1
+		self.init_latent_loc = torch.tensor([init_prior[0]], 
+			requires_grad=grad_model_params, device=device)
+		self.init_latent_log_scale = torch.tensor([math.log(init_prior[1])], 
+			requires_grad=grad_model_params, device=device)
+		self.transition_log_scale = torch.tensor([math.log(transition_scale)], 
+			requires_grad=grad_model_params, device=device)
+		self.obs_log_scale = torch.tensor([math.log(obs_scale)], 
+			requires_grad=grad_model_params, device=device)
+
+	def return_model_params(self):
+		'''returns list of model params'''
+		return [self.init_latent_loc, self.init_latent_log_scale,
+			self.transition_log_scale, self.obs_log_scale]
 
 	def sample(self, T):
 		'''
 			sample latent variables and observations
 		'''
 		latents, obs = [], []
-		log_prior_cpd = Normal(self.init_latent_loc, self.init_latent_scale)
+		log_prior_cpd = Normal(self.init_latent_loc, torch.exp(self.init_latent_log_scale))
 		latents.append(log_prior_cpd.sample())
-		obs_cpd = Normal(latents[0], self.obs_scale)
+		obs_cpd = Normal(latents[0], torch.exp(self.obs_log_scale))
 		obs.append(obs_cpd.sample())
 		for i in range(1,T):
-			transition_cpd = Normal(latents[i-1], self.transition_scale)
+			transition_cpd = Normal(latents[i-1], torch.exp(self.transition_log_scale))
 			latents.append(transition_cpd.sample())
-			obs_cpd = Normal(latents[i], self.obs_scale)
+			obs_cpd = Normal(latents[i], torch.exp(self.obs_log_scale))
 			obs.append(obs_cpd.sample())
-		return latents, obs
+		return obs, latents
 
-	def logjoint(self, x, latent_mean, model_params):
+	def logjoint(self, x, latent_mean):
 		'''
 		input: x (observations T x D)
 		input: latent_mean
 		return logpdf under the model parameters
 		'''
-		transition_log_scale, obs_log_scale = model_params[0], model_params[1]
-		self.transition_scale = torch.exp(transition_log_scale)
-		self.obs_scale = torch.exp(obs_log_scale)
+		#transition_log_scale, obs_log_scale = model_params[0], model_params[1]
+		#self.transition_scale = torch.exp(transition_log_scale)
+		#self.obs_scale = torch.exp(obs_log_scale)
 
 		T = x.size(0)
 		# init log prior
-		init_latent_logpdf = Normal(self.init_latent_loc, self.init_latent_scale)
+		init_latent_logpdf = Normal(self.init_latent_loc, torch.exp(self.init_latent_log_scale))
 		# transitions
-		transition_logpdf = Normal(latent_mean[:-1], self.transition_scale)
+		transition_logpdf = Normal(latent_mean[:-1], torch.exp(self.transition_log_scale))
 		# observations
-		obs_logpdf = Normal(latent_mean, self.obs_scale)
+		obs_logpdf = Normal(latent_mean, torch.exp(self.obs_log_scale))
 
 		# compute log probs
 		logprob = init_latent_logpdf.log_prob(latent_mean[0])
@@ -107,7 +120,7 @@ class LogReg_LDS(object):
 			# pass latents[i] through a sigmoid
 			obs_cpd = Bernoulli(self.sigmoid(latents[i]))
 			obs.append(obs_cpd.sample())
-		return latents, obs
+		return obs, latents
 
 	def logjoint(self, x, latent_mean, model_params):
 		'''
@@ -131,6 +144,64 @@ class LogReg_LDS(object):
 		logprob += torch.sum(obs_logpdf.log_prob(x))
 
 		return logprob
+
+class LearningDynamicsModel(object):
+	def __init__(self):
+		# initialize parameters
+		self.init_latent_loc = 0.0
+		self.init_latent_scale = 0.1
+		self.transition_scale = 0.1
+		self.sigmoid = nn.Sigmoid()
+
+	def sample(self, T):
+		'''
+			sample latent variables and observations
+		'''
+		return 1
+
+	def basis(self, x):
+		'''
+		given input x, learn a basis with a useful hidden representation
+		op 1: 1D convolution on x outputs high-d hidden representation per time point
+		op 2: rnn outputting hidden rep at each time point
+		might want to switch to a class if multiple options we want to try
+		'''
+		return 1
+
+	def log_joint(self, x, latent_mean, model_params):
+		'''
+		input: x (observations T x D)
+		input: latent_mean
+		return logpdf under the model parameters
+		'''
+		return 1
+
+	def prior(self):
+		return 1
+
+	def likelihood(self):
+		return 1
+
+	def rat_reward(self):
+		'''rat's reward func
+			might want to switch this to a class if multiple options
+		'''
+		return 1
+
+	def grad_rat_reward(self):
+		'''
+			rat's gradient of reward func
+			might want to swtich to a class if multiple ways it might compute gradient
+			- score function
+			- log loss
+			- NN inducing.
+		'''
+		return 1
+
+	def grad_warping(self):
+		'''takes in gradient and warps through a nonlinear function'''
+		return 1
+
 
 def print_memory():
     print("memory usage: ", (process.memory_info().rss)/(1e9))
