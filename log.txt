@@ -1,3 +1,35 @@
+2.8.18
+
+	- refactored main to take use arg parse
+	- refactored models and inference
+		- models owns its own model parameters and sets requires_grad accordingly
+		- latent variables are independent and initialized in main (might want to switch this to inference class)
+
+
+	agenda:
+		- implement smc for LDS gaussian model (and compare to exact inference)
+			- importance sampling
+			- effective sample size
+			- renormalize weights
+		- implement iwae, smc, fivo (hard)
+		- implement dynamics model (easy)
+
+
+
+	detailed agenda:
+		- implement linear regression X
+		- can swap between map and vi X 
+		- have a plot comparing VI, IS on linear regression (show they converge to same solution)
+		- implement exact inference for lin reg and lds
+		- add IWAE estimator and compute on linear regression
+		- replot all of the above estimators for a LDS
+		- add SMC.
+
+
+
+	*****computing IS estimate incorrectly. 
+
+
 2.7.18
 AGENDA:
 
@@ -21,6 +53,15 @@ AGENDA:
 		- if i set model params to true values, optimize var params, then set var params to converged values and optimize model
 			params i get the right solution. 
 		- one solution: coordinate procedure, but kind of annoying. what are best practices for joint optimization?
+
+
+
+	convo with rpa:
+		- turn down noise in LDS -> does bbvi converge to right solution?
+		- posterior predictive checks (compare to true data)
+		- compare to exact inference
+		- implement smc 
+
 
 2.6.18
 	- so far, MAP and Mean-field posteroir inference work well for LDS and Log reg lds (less well for second)
