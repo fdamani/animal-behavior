@@ -24,10 +24,15 @@ torch.manual_seed(7)
 np.random.seed(7)
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 dtype = torch.float32
+
+
 class Map(object):
 	def __init__(self, model):
 		self.model = model
+	def unpack_params(self, params):
+		return params[0]
 	def forward(self, x, params):
+		params = self.unpack_params(params)
 		return self.model.logjoint(x, params)
 
 class MeanFieldVI(object):
@@ -38,7 +43,7 @@ class MeanFieldVI(object):
 		self.model = model
 		self.num_samples = num_samples
 
-	def unpack_var_params(self, params, T):
+	def unpack_var_params(self, params):
 		loc, log_scale = params[0], params[1]
 		return loc, log_scale
 
@@ -46,8 +51,7 @@ class MeanFieldVI(object):
 		'''
 			useful for analytic kl  kl = torch.distributions.kl.kl_divergence(z_dist, self.prior).sum(-1)
 		'''
-		T = x.size(0)
-		loc, log_scale = self.unpack_var_params(var_params, T)
+		loc, log_scale = self.unpack_var_params(var_params)
 		cov = torch.diag(torch.exp(log_scale))**2
 		scale_tril = cov.tril()
 		var_dist = MultivariateNormal(loc, scale_tril=scale_tril)
@@ -104,11 +108,7 @@ class IWAE(object):
 	importance weighted autoencoder
 	special case of FIVO (no smc resampling)
 	'''
-	def __init__(self):
-		self.model = None
-		self.num_particles = 0
-
-	def initialize(self, model, num_particles=10):
+	def __init__(self, model, num_particles=10):
 		self.model = model
 		self.num_particles = num_particles
 
@@ -116,6 +116,8 @@ class IWAE(object):
 		return 1
 
 	def forward(self):
+		'''objective func'''
+
 		return 1
 
 class FIVO(object):

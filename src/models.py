@@ -34,6 +34,59 @@ def univar_normal(loc, scale):
 def bernoulli(param):
 	return Bernoulli(param)
 
+class LinearRegression(object):
+	def __init__(self,
+				 grad_model_params=False,
+				 init_prior=(0.0, 1.0),
+				 obs_scale=0.1,
+				 num_samples=100):
+		# initialize parameters
+		self.prior_loc = torch.tensor([init_prior[0]], 
+			requires_grad=grad_model_params, device=device)
+		self.prior_log_scale = torch.tensor([math.log(init_prior[1])], 
+			requires_grad=grad_model_params, device=device)
+		self.obs_log_scale = torch.tensor([math.log(obs_scale)], 
+			requires_grad=grad_model_params, device=device)
+
+		self.num_samples = num_samples
+
+	def return_model_params(self):
+		'''returns list of model params'''
+		return [self.init_latent_loc, self.init_latent_log_scale,
+			self.transition_log_scale, self.obs_log_scale]
+
+	def sample(self):
+		'''
+			sample latent variables and observations
+		'''
+		prior_z = Normal(self.prior_loc, torch.exp(self.prior_log_scale))
+		z = prior_z.sample().reshape(-1,1)
+		prior_x = Normal(self.prior_loc, torch.exp(self.prior_log_scale))
+		X = prior_x.sample(torch.Size((self.num_samples,)))
+		mean = torch.matmul(X, z)
+		observation_model = Normal(mean, torch.exp(self.obs_log_scale))
+		y = observation_model.sample()
+		return X, y, z
+
+
+	def logjoint(self, data, z):
+		'''
+		input: x (observations T x D)
+		input: latent_mean
+		return logpdf under the model parameters
+		'''
+		#transition_log_scale, obs_log_scale = model_params[0], model_params[1]
+		#self.transition_scale = torch.exp(transition_log_scale)
+		#self.obs_scale = torch.exp(obs_log_scale)
+		x, y = data[0], data[1]
+		prior = Normal(self.prior_loc, torch.exp(self.prior_log_scale))
+		mean = torch.matmul(x, z).reshape(-1,1)
+		likelihood = Normal(mean, torch.exp(self.obs_log_scale))
+		logprob = torch.sum(prior.log_prob(z))
+		logprob += torch.sum(likelihood.log_prob(y))
+		return logprob
+
+
 class LDS(object):
 	def __init__(self, 
 				 grad_model_params=False, 

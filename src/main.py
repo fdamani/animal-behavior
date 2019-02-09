@@ -26,6 +26,7 @@ import models
 from models import LDS, LogReg_LDS
 import inference
 from inference import Map, MeanFieldVI, StructuredVITriDiagonal
+from config import get_args
 import psutil
 process = psutil.Process(os.getpid())
 
@@ -46,6 +47,7 @@ lr = args.learning_rate
 print_every = args.print_every
 
 if __name__ == '__main__':
+	print args
 	model = None
 	if model_type == 'LDS':
 		model = LDS(grad_model_params)
@@ -61,7 +63,7 @@ if __name__ == '__main__':
 	if inference_method == 'map':
 		inference = Map()
 	elif inference_method == 'mfvi':
-		inference = MeanFieldVI()
+		inference = MeanFieldVI(model)
 	elif inference_method == 'tri_diag_vi':
 		inference = StructuredVITriDiagonal()
 	elif inference_method == 'iwae':
@@ -76,7 +78,7 @@ if __name__ == '__main__':
 	x, z_true = model.sample(T)
 
 	# cast as torch tensors
-	x = torch.tensor(x_sim, dtype=dtype, device=device)
+	x = torch.tensor(x, dtype=dtype, device=device)
 	z_true = torch.tensor(z_true, requires_grad=False, dtype=dtype, device=device)
 	z_mean = torch.rand(T, requires_grad=grad_latents, dtype=dtype, device=device)
 	z_log_scale = torch.tensor(torch.log(torch.rand(T)), requires_grad=grad_latents, 
@@ -104,10 +106,10 @@ if __name__ == '__main__':
 		outputs.append(output.item())
 		output.backward()
 		optimizer.step()
-		if t % 250 == 0:
+		if t % print_every == 0:
 			print 'iter: ', t, ' output: ', output.item(), ' norm: ', \
 				np.linalg.norm(np.abs(z_mean.detach().cpu().numpy() - z_true.cpu().numpy())), \
-
+				model.return_model_params()
 	 			#'transition scale: ', np.exp(transition_log_scale.detach().cpu().numpy()), \
 	 			#'obs scale: ', np.exp(obs_log_scale.detach().cpu().numpy())
 
