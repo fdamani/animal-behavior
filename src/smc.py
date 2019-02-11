@@ -29,7 +29,7 @@ dtype = torch.float32
 class IS(object):
 	'''importance sampling
 	'''
-	def __init__(self, model, num_particles=10, proposal_loc = 0.0, proposal_scale = 2.0):
+	def __init__(self, model, num_particles=10000, proposal_loc = 0.0, proposal_scale = 2.0):
 		self.model = model
 		self.num_particles = num_particles
 		self.proposal_loc = torch.tensor(proposal_loc, requires_grad=False, device=device)
@@ -40,19 +40,19 @@ class IS(object):
 		'''importance sample 
 		'''
 		# sample from proposal distribution
-		samples = self.proposal_dist.sample(torch.Size((10,1)))
+		samples = self.proposal_dist.sample(torch.Size((self.num_particles,1)))
 		# compute weights
-		weights = torch.zeros(self.num_particles, requires_grad=False, device=device)
+		log_weights = torch.zeros(self.num_particles, requires_grad=False, device=device)
 		for i,sx in enumerate(samples):
-			p_x_z = self.model.logjoint(data, sx)
-			q = self.proposal_dist.log_prob(sx)
-			wx = p_x_z / q
-			weights[i] = wx
+			log_p_x_z = self.model.logjoint(data, sx)
+			log_q = self.proposal_dist.log_prob(sx)
+			log_wx = log_p_x_z - log_q
+			log_weights[i] = log_wx
 		# normalize weights
-		weights = self.normalize_weights(weights)
-		exp_value = self.compute_expected_value(weights, samples)
-		var = self.compute_variance(weights, samples)
-
+		softmax = F.softmax
+		norm_weights = softmax(log_weights)
+		exp_value = self.compute_expected_value(norm_weights, samples)
+		var = self.compute_variance(norm_weights, samples)
 		return exp_value, var
 
 	def normalize_weights(self, weights):

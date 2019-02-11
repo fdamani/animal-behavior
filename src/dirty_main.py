@@ -39,7 +39,7 @@ if __name__ == '__main__':
 	inference_types = ['map', 'mfvi', 'is']
 	inference_type = inference_types[2]
 
-	model = LinearRegression(num_samples=1000)
+	model = LinearRegression(num_samples=100)
 	x, y, z_true = model.sample()
 
 	inference = None
@@ -55,12 +55,9 @@ if __name__ == '__main__':
 	dim = x.size(1)
 	# cast as torch tensors
 	x = torch.tensor(x, dtype=dtype, device=device)
-
-
-	mean, var = inference.estimate(x)
+	data = [x,y]
+	mean, var = inference.estimate(data)
 	embed()
-
-
 
 	z_true = torch.tensor(z_true, requires_grad=False, dtype=dtype, device=device)
 	z_mean = torch.rand(torch.tensor([dim]), requires_grad=grad_latents, dtype=dtype, device=device)
