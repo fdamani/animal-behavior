@@ -124,6 +124,33 @@ class LDS(object):
 			obs.append(obs_cpd.sample())
 		return obs, latents
 
+	def log_likelihood_t(self, x_t, x_past, z):
+		'''
+			generic likelihood:
+			p(x_t | x_{1:t-1}, z_{1:t})
+		'''
+		obs_logpdf = Normal(z[-1], torch.exp(self.obs_log_scale))
+		return obs_logpdf.log_prob(x_t)
+
+	def log_prior_t(self, z_t, z_past, x_past):
+		'''
+			generic prior
+			p(z_t | x_{1:t-1}, z_{1:t-1})
+		'''
+		transition_logpdf = Normal(z_past[-1], torch.exp(self.transition_log_scale))
+		return transition_logpdf.log_prob(z_t)
+
+	def logjoint_t(self, x, z):
+		'''
+			p(x_t, z_t | x_1:t-1, z_1:t-1)
+		'''
+		x_t = x[-1]
+		x_past = x[:-1]
+		z_t = z[-1]
+		z_past = z[:-1]
+	
+		return self.log_likelihood_t(x_t, x_past, z) + self.log_prior_t(z_t, z_past, x_past)
+
 	def logjoint(self, x, latent_mean):
 		'''
 		input: x (observations T x D)

@@ -14,7 +14,7 @@ import torch.nn.functional as F
 from torch.autograd import Variable, grad
 from torch.nn import Linear, Module, MSELoss
 from torch.optim import SGD, Adam
-from torch.distributions import Normal, Bernoulli, MultivariateNormal
+from torch.distributions import Normal, Bernoulli, MultivariateNormal, Categorical
 from torch.distributions import constraints, transform_to
 import psutil
 process = psutil.Process(os.getpid())
@@ -78,7 +78,7 @@ class SMC(object):
 	def __init__(self, model, 
 				num_particles=1000,
 				init_prior = (0.0, 0.5),
-				transition_scale = 0.5, isLearned=False):
+				transition_scale = 0.5, T=100, isLearned=False):
 		self.model = model
 		self.q_init_latent_loc = torch.tensor([init_prior[0]], 
 			requires_grad=isLearned, device=device)
@@ -87,11 +87,20 @@ class SMC(object):
 		self.q_transition_log_scale = torch.tensor([math.log(transition_scale)], 
 			requires_grad=isLearned, device=device)
 
+		self.num_particles = num_particles
+		self.T = T
+		self.weights = torch.ones(self.num_particles, device=device)
+		self.particles = torch.zeros((self.num_particles, self.T))
+
 	def q_init_sample(self):
 		q_t = Normal(self.q_init_latent_loc, torch.exp(self.q_transition_log_scale))
 		return q_t.sample()
 
-	def q_sample(self, z_mean):
+	def q_sample(self, x, z_past):
+		'''
+			z_t ~ q_t(z_t | x_1:t, z_1:t-1)
+		'''
+		z_mean = z_past[-1]
 		q_t = Normal(z_mean, torch.exp(self.q_transition_log_scale))
 		return q_t.sample()
 
@@ -99,16 +108,36 @@ class SMC(object):
 		q_t = Normal(self.q_init_latent_loc, torch.exp(self.q_transition_log_scale))
 		return q_t.log_prob(z_sample)
 
-	def q_logprob(self, z_mean, z_sample):
+	def q_logprob(self, z_t, x, z_past):
+		'''
+			q_t(z_t | x_1:t, z_1:t-1)
+		'''
+		z_mean = z_past[-1]
 		q_t = Normal(z_mean, torch.exp(self.q_transition_log_scale))
-		return q_t.log_prob(z_sample)
+		return q_t.log_prob(z_t)
 
-	def compute_log_weight(self, z_mean, z_sample, x):
-		log_p_x_z = self.model.logjoint(x, z_sample)
-		log_q = self.q_logprob(z_mean, z_sample)
+	def compute_incremental_weight(self, z_0_to_t, x_0_to_t):
+		'''
+			for particle i
+			alpha_t (z_{1:t}^i) = p_t(x_t, z_t^i | x_{1:t-1}, z_{1:t-1}^i) / q_t(z_t^i | x_{1:t}, z_{1:t-1}^i)
+	
+			input: z_sample is z_t
+			particle is z_1:t-1
+			x is a vector x_{1:t}
+		'''
+		z_sample = z_0_to_t[-1]
+		particle = z_0_to_t[:-1]
+		z_0_to_t = torch.cat([particle, z_sample])
+		log_p_x_z_t = self.model.logjoint_t(x_0_to_t, z_0_to_t)
+		log_q = self.q_logprob(z_sample, x_0_to_t, particle)
 		log_weight = log_p_x_z - log_q
 		return log_weight
 
+	def update_weights(self, alpha):
+		'''
+			multiply weights at time t-1 with incremental weights alpha for time t
+		'''
+		self.weights = self.weights * alpha
 
 	def normalize_weights(self, log_weights):
 		'''
@@ -118,6 +147,9 @@ class SMC(object):
 		softmax = F.softmax
 		norm_weights = softmax(log_weights)
 		return norm_weights
+
+	def reset_weights(self):
+		self.weights = torch.ones(num_particles, device=device)
 
 	def effective_sample_size(self, weights):
 		'''compute ESS to decide when to resample
@@ -134,10 +166,9 @@ class SMC(object):
 		effective sample size is high. if highly unbalanced, then
 		low entropy and low ESS.
 		'''
+		return 1.0 / torch.sum(weights ** 2)
 		
-		return 1
-
-	def multinomial_resampling(self, weights):
+	def multinomial_resampling(self):
 		'''
 			given logits or normalized weights
 			sample from multinomial/categorical
@@ -146,13 +177,65 @@ class SMC(object):
 			*note we are sampling full particle trajectories
 			x_1:t given weights at time point t.
 		'''
+		# categorical over normalized weight vector for N particles
+		sampler = Categorical(self.weights)
+		# sample indices over particles
+		samples = sampler.sample(torch.Size((self.num_particles)))
+		# identify particles corresponding to indices
+		self.particles = self.particles[samples]
 
 
+	def resample(self, type):
+		self.multinomial_resampling()
+		self.reset_weights()
 
-	def estimate(self, data):
+
+	def compute_weights(self, t, x):
 		'''
+			compute weights for time point t: w_t
+			input: x
+		'''
+		x_0_to_t = x[0:t]
+		# compute weight for each particle
+		log_weights = torch.zeros(self.num_particles, requires_grad=False, device=device)
+		for i in range(0, self.num_particles):
+			z_sample = self.particles[i, t]
+			# access ith particle trajectory z_0:t^i
+			z_0_to_t = self.particles[i, 0:t]
+			log_w = self.compute_incremental_weight(z_0_to_t, x_0_to_t)
+			log_weights[i] = log_w
+		# normalize weights
+		alpha = self.normalize_weights(log_weights)
+		self.update_weights(alpha)
 
-			particle filter maintains a population {w,z} of particles
+	def estimate(self, x):
+		'''
+			# sample from q_t for N particle trajectories
+			# compute incremental weights for samples
+			# update weights by multiplying by incremental then normalizing
+			# compute ESS of weights
+			# if less than threshold:
+				# resample particle trajectories from categorical dist over new weights
+				# save new trajectories
+				# set weights to one
+		'''
+		# compute particles and weights for t = 0
+		for i in range(0, self.num_particles):
+			# z_0^i = q(z_0)
+			self.particles[i, 0] = self.q_init_sample()
+		t = 0
+		self.compute_weights(0, t + 1)
+		# compute weights
+
+
+
+		# for each time point
+		for t in range(0, T):
+			# for each particle
+			for i in range(0, self.num_particles):
+				# sample from q_t
+
+
 			
 
 
