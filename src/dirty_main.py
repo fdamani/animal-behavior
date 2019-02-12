@@ -39,7 +39,7 @@ if __name__ == '__main__':
 	inference_types = ['map', 'mfvi', 'is']
 	inference_type = inference_types[2]
 
-	model = LinearRegression(num_samples=100)
+	model = LinearRegression(num_samples=1000)
 	x, y, z_true = model.sample()
 
 	inference = None

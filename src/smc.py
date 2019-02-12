@@ -50,6 +50,7 @@ class IS(object):
 			log_weights[i] = log_wx
 		# normalize weights
 		softmax = F.softmax
+		# probabilities on simplex
 		norm_weights = softmax(log_weights)
 		exp_value = self.compute_expected_value(norm_weights, samples)
 		var = self.compute_variance(norm_weights, samples)
@@ -62,6 +63,10 @@ class IS(object):
 		return torch.dot(weights.flatten(), samples.flatten())
 
 	def compute_variance(self, weights, samples):
+		'''this might be the wrong variance
+		E_q [w * f]
+		variance of w*f evaluated under samples from q
+		'''
 		return torch.var(weights.flatten() * samples.flatten())
 
 class SMC(object):
@@ -70,9 +75,49 @@ class SMC(object):
 	try this on simple LDS model where log prior is (0,1)
 	transition and obs_scale set to 0.1
 	'''
-	def __init__(self, model):
+	def __init__(self, model, 
+				num_particles=1000,
+				init_prior = (0.0, 0.5),
+				transition_scale = 0.5, isLearned=False):
 		self.model = model
+		self.q_init_latent_loc = torch.tensor([init_prior[0]], 
+			requires_grad=isLearned, device=device)
+		self.q_init_latent_log_scale = torch.tensor([math.log(init_prior[1])], 
+			requires_grad=isLearned, device=device)
+		self.q_transition_log_scale = torch.tensor([math.log(transition_scale)], 
+			requires_grad=isLearned, device=device)
 
+	def q_init_sample(self):
+		q_t = Normal(self.q_init_latent_loc, torch.exp(self.q_transition_log_scale))
+		return q_t.sample()
+
+	def q_sample(self, z_mean):
+		q_t = Normal(z_mean, torch.exp(self.q_transition_log_scale))
+		return q_t.sample()
+
+	def q_init_logprob(self, z_sample):
+		q_t = Normal(self.q_init_latent_loc, torch.exp(self.q_transition_log_scale))
+		return q_t.log_prob(z_sample)
+
+	def q_logprob(self, z_mean, z_sample):
+		q_t = Normal(z_mean, torch.exp(self.q_transition_log_scale))
+		return q_t.log_prob(z_sample)
+
+	def compute_log_weight(self, z_mean, z_sample, x):
+		log_p_x_z = self.model.logjoint(x, z_sample)
+		log_q = self.q_logprob(z_mean, z_sample)
+		log_weight = log_p_x_z - log_q
+		return log_weight
+
+
+	def normalize_weights(self, log_weights):
+		'''
+			input: N particle log_weights
+			return normalized exponentiated weights
+		'''
+		softmax = F.softmax
+		norm_weights = softmax(log_weights)
+		return norm_weights
 
 	def effective_sample_size(self, weights):
 		'''compute ESS to decide when to resample
@@ -89,6 +134,7 @@ class SMC(object):
 		effective sample size is high. if highly unbalanced, then
 		low entropy and low ESS.
 		'''
+		
 		return 1
 
 	def multinomial_resampling(self, weights):
@@ -103,8 +149,16 @@ class SMC(object):
 
 
 
-	def forward(self, x, var_params):
+	def estimate(self, data):
 		'''
-			useful for analytic kl  kl = torch.distributions.kl.kl_divergence(z_dist, self.prior).sum(-1)
+
+			particle filter maintains a population {w,z} of particles
+			
+
+
+
+
+
 		'''
+
 		return 1
