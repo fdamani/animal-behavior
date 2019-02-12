@@ -1,3 +1,25 @@
+2.12.18
+	- continue implementing SMC
+		- question:
+			- after computing incremental weight alpha:
+				1
+					- normalize alpha
+					- multiply by normalized weights w
+					- normalize w*alpha?
+				2
+					- compute log unnormalized alphas
+					- multiply by log weights w
+					- normalize w*alpha
+				- for now, we resample at every step
+			- after finishing sampling last time point, do we resample to collapse?
+				- in other words, do we want num_particles unique trajectories?
+					- see if you can find answer to this online.
+
+	- to do:
+		- implement SMC X
+
+
+
 2.11.18
 	- implement SMC (write out steps on paper) - quick heuristic for
 		proposal q(z_t | z_{t-1}, noise)
