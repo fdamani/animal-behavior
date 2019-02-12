@@ -9,7 +9,7 @@ import os
 import numpy as np
 import math
 import matplotlib
-matplotlib.use('Agg')
+# matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from IPython import display, embed
 import torch
@@ -37,7 +37,7 @@ def bernoulli(param):
 class LinearRegression(object):
 	def __init__(self,
 				 grad_model_params=False,
-				 init_prior=(0.0, 1.0),
+				 init_prior=(0.0, 0.1),
 				 obs_scale=0.1,
 				 num_samples=100):
 		# initialize parameters
@@ -132,6 +132,11 @@ class LDS(object):
 		obs_logpdf = Normal(z[-1], torch.exp(self.obs_log_scale))
 		return obs_logpdf.log_prob(x_t)
 
+
+	def init_log_prior(self, z_t):
+		init_latent_logpdf = Normal(self.init_latent_loc, torch.exp(self.init_latent_log_scale))
+		return init_latent_logpdf.log_prob(z_t)
+
 	def log_prior_t(self, z_t, z_past, x_past):
 		'''
 			generic prior
@@ -148,8 +153,12 @@ class LDS(object):
 		x_past = x[:-1]
 		z_t = z[-1]
 		z_past = z[:-1]
-	
-		return self.log_likelihood_t(x_t, x_past, z) + self.log_prior_t(z_t, z_past, x_past)
+		if z_past.nelement() == 0:
+			log_prior = self.init_log_prior(z_t)
+		else:
+			log_prior = self.log_prior_t(z_t, z_past, x_past)
+		log_lh = self.log_likelihood_t(x_t, x_past, z)
+		return log_lh + log_prior
 
 	def logjoint(self, x, latent_mean):
 		'''

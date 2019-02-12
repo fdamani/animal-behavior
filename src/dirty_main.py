@@ -5,7 +5,7 @@ import os
 import numpy as np
 import math
 import matplotlib
-matplotlib.use('Agg')
+# matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from IPython import display, embed
 import torch
@@ -20,7 +20,7 @@ from models import LDS, LogReg_LDS, LinearRegression
 import inference
 from inference import Map, MeanFieldVI, StructuredVITriDiagonal
 import smc
-from smc import IS
+from smc import IS, SMC
 import psutil
 process = psutil.Process(os.getpid())
 
@@ -36,11 +36,17 @@ if __name__ == '__main__':
 	grad_latents = True
 	grad_model_params = False
 
-	inference_types = ['map', 'mfvi', 'is']
-	inference_type = inference_types[2]
-
-	model = LinearRegression(num_samples=1000)
-	x, y, z_true = model.sample()
+	inference_types = ['map', 'mfvi', 'is', 'smc']
+	inference_type = inference_types[3]
+	T = 10
+	num_particles = 100
+	# time-series model
+	if inference_type == 'smc':
+		model = LDS()
+		x, z_true = model.sample(T=T)
+	else:
+		model = LinearRegression(num_samples=10)
+		x, y, z_true = model.sample(T=T)
 
 	inference = None
 	if inference_type == 'map':
@@ -49,20 +55,30 @@ if __name__ == '__main__':
 		inference = MeanFieldVI(model)
 	elif inference_type == 'is':
 		inference = IS(model)
+	elif inference_type == 'smc':
+		inference = SMC(model, num_particles=num_particles, T=T)
 	else:
 		print 'error: select valid inference.'
 		sys.exit()
-	dim = x.size(1)
+	# dim = x.size(1)
+	dim = len(x)
 	# cast as torch tensors
 	x = torch.tensor(x, dtype=dtype, device=device)
-	data = [x,y]
+	data = x
+	if inference_type != 'smc':
+		data = [x,y]
 	mean, var = inference.estimate(data)
-	embed()
 
 	z_true = torch.tensor(z_true, requires_grad=False, dtype=dtype, device=device)
 	z_mean = torch.rand(torch.tensor([dim]), requires_grad=grad_latents, dtype=dtype, device=device)
 	z_log_scale = torch.tensor(torch.log(torch.rand(dim)), requires_grad=grad_latents, 
 	 	dtype=dtype, device=device)
+	
+	plt.plot(z_true.detach().cpu().numpy(), label='true')
+	plt.plot(mean.detach().cpu().numpy(), label='smc')
+	plt.legend()
+	plt.show()
+
 	#opt_params = z_mean
 
 	if inference_type == 'map':
