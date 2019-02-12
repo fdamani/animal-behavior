@@ -1,3 +1,24 @@
+2.11.18
+	- implement SMC (write out steps on paper) - quick heuristic for
+		proposal q(z_t | z_{t-1}, noise)
+	- apply it to LDS
+	- implement iwae bound with a neural network
+	-
+
+
+	- status:
+		- working importance sampler
+	- to do
+		- correctly implement variance of importance sampler
+		- have a working SMC sampler on LDS.
+			- extending IS to SMC class
+			- its just sequential IS
+			- resample particles if ESS of weights falls below thresh
+		- extend IS to IWAE using elbo + parametric proposal as a q
+		- extend SMC to VSMC
+		- for each extension log results on benchmarks
+		- will want better benchmark than linear system.
+
 2.8.18
 
 	- refactored main to take use arg parse
