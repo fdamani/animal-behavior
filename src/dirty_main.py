@@ -123,8 +123,6 @@ if __name__ == '__main__':
     plt.plot(outputs)
 
     '''
-
-
     z_true = torch.tensor(z_true, requires_grad=False, dtype=dtype, device=device)
     z_mean = torch.rand(torch.tensor([dim]), requires_grad=grad_latents, dtype=dtype, device=device)
     z_log_scale = torch.tensor(torch.log(torch.rand(dim)), requires_grad=grad_latents, 
