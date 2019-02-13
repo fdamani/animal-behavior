@@ -65,6 +65,7 @@ class VSMC(object):
 		'''
 			useful for analytic kl  kl = torch.distributions.kl.kl_divergence(z_dist, self.prior).sum(-1)
 		'''
+
 		return -self.smc.particle_filter(x)
 		#self.smc.particle_filter(x)
 		#log_marginal_ll = self.smc.compute_log_marginal_likelihood()
