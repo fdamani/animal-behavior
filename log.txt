@@ -1,3 +1,11 @@
+2.13.18
+	- to do
+		- check how to compute log marginal ll
+		- confirm approach in smcOPT gives same value as smc approach for log marginal lh.
+		- look at papers and figure out a good simple test.
+		- review approach compare to paper.
+
+
 2.12.18
 	- continue implementing SMC
 		- question:
@@ -14,9 +22,29 @@
 			- after finishing sampling last time point, do we resample to collapse?
 				- in other words, do we want num_particles unique trajectories?
 					- see if you can find answer to this online.
+			- if we dont resample, then final weights are just incremental weights:
+				alpha = p(x_t, z_t) / q_t(z_t)
+
 
 	- to do:
-		- implement SMC X
+		- implement SMC (we know its working - when noise goes to 0 -> approximation becomes perfect) X
+		- implement log marginal likelihood X
+		- confirm log marginal likelihood is CORRECT. X
+			- print kalman filter log marginal computation X
+		- implement VSMC
+			- set up simple proposal variational family AR-1 model. with single
+				mean shift as variational param to optimize. 
+					- extension includes one lambda per time point
+
+
+
+		- implement VSMC with with learned "q params" which are AR-1 model.
+			- learn one init scale, one transition scale as variational params.
+			- learn mean for each 
+		- compare to true LDS
+
+
+
 
 
 
