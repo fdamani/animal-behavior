@@ -43,11 +43,11 @@ if __name__ == '__main__':
 
     inference_types = ['map', 'mfvi', 'is', 'smc', 'vsmc']
     inference_type = inference_types[4]
-    T = 25
-    num_particles = 100
+    T = 100
+    num_particles = 1000
     # time-series model
     if inference_type == 'smc' or inference_type == 'vsmc':
-        model = LDS()
+        model = LogReg_LDS(init_prior=(0.0, 0.1), transition_scale=0.1)
         x, z_true = model.sample(T=T)
         z_true = torch.cat(z_true)
     else:
@@ -65,8 +65,8 @@ if __name__ == '__main__':
         inference = SMC(model, num_particles=num_particles, T=T)
     elif inference_type == 'vsmc':
         #lx = torch.tensor([1.0], requires_grad=True, device=device)
-        init_prior = (0.0, 0.1)
-        transition_scale = 0.1
+        init_prior = (0.0, 0.3)
+        transition_scale = 0.2
         q_init_latent_loc = torch.tensor([init_prior[0]], 
             requires_grad=False, device=device)
         q_init_latent_log_scale = torch.tensor([math.log(init_prior[1])], 
@@ -93,10 +93,21 @@ if __name__ == '__main__':
     data = x
     # if inference_type != 'smc':
     #   data = [x,y]
-    # mean, var = inference.estimate(data)
-    #inference = SMC(model, num_particles=num_particles, T=T)
-    #smc_marginal_ll = inference.compute_log_marginal_likelihood()
-    exact_marginal_ll = model.log_marginal_likelihood(T, x)
+
+    #exact_marginal_ll = model.log_marginal_likelihood(T, x)
+    #inference_smc = SMC(model, num_particles=num_particles, T=T)
+    # mean, var = inference_smc.estimate(data)
+    # smc_marginal_ll = inference_smc.compute_log_marginal_likelihood()
+    smcopt_marginal_ll = inference.forward(data)
+    mean, var = inference.smc.estimate(data)
+    #vsmc_marginal_ll = inference.forward(data)
+    print smcopt_marginal_ll#, exact_marginal_ll
+    plt.plot(to_numpy(z_true), label="true")
+    plt.plot(to_numpy(mean), label="smc")
+    plt.legend(loc='lower right')
+    plt.show()
+
+    embed()
     print 'exact_marginal_ll: ', exact_marginal_ll#, ' smc: ', smc_marginal_ll,
     # create list of params to optimize
     #opt_params = variational_params

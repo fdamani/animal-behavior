@@ -94,9 +94,9 @@ class SMC(object):
 		self.particles = torch.zeros((self.num_particles, self.T))
 		self.inter_marginal = torch.zeros(self.T)
 
-	def q_init_sample(self):
+	def q_init_sample(self, num_samples=1):
 		q_t = Normal(self.q_init_latent_loc, torch.exp(self.q_init_latent_log_scale))
-		return q_t.sample() ## might want rsample() to get reparameterized gradients
+		return q_t.sample((torch.Size((num_samples,)))) ## might want rsample() to get reparameterized gradients
 
 	def q_sample(self, x, z_past):
 		'''
@@ -119,7 +119,7 @@ class SMC(object):
 		return q_t.log_prob(z_t)
 
 	def compute_incremental_weight(self, z_0_to_t, x_0_to_t):
-		'''
+		''' vectorize across particles first dim of z_0_to_t
 			for particle i
 			alpha_t (z_{1:t}^i) = p_t(x_t, z_t^i | x_{1:t-1}, z_{1:t-1}^i) / q_t(z_t^i | x_{1:t}, z_{1:t-1}^i)
 	
@@ -127,18 +127,23 @@ class SMC(object):
 			particle is z_1:t-1
 			x is a vector x_{1:t}
 		'''
-		z_sample = z_0_to_t[-1] # confirm this is the right sample
-		particle = z_0_to_t[:-1]
-		# log p_t(x_t, z_t | x_1:t-1, z_1:t-1)
-		log_p_x_z_t = self.model.logjoint_t(x_0_to_t, z_0_to_t)
-		# log q_t(z_t | x_1:t, z_1:t-1 )
-		if particle.nelement() == 0:
-			log_q = self.q_init_logprob(z_sample)
-		else:
-			log_q = self.q_logprob(z_sample, x_0_to_t, particle)
-		# log alpha = log p - log q
-		log_weight = log_p_x_z_t - log_q
-		return log_weight
+		num = z_0_to_t.size(0)
+		x_0_to_t = x_0_to_t.repeat(num, 1)
+		log_wts = []
+		for i in range(num):
+			z_sample = z_0_to_t[i][-1] # confirm this is the right sample
+			particle = z_0_to_t[i][:-1]
+			# log p_t(x_t, z_t | x_1:t-1, z_1:t-1)
+			log_p_x_z_t = self.model.logjoint_t(x_0_to_t[i], z_0_to_t[i])
+			# log q_t(z_t | x_1:t, z_1:t-1 )
+			if particle.nelement() == 0:
+				log_q = self.q_init_logprob(z_sample)
+			else:
+				log_q = self.q_logprob(z_sample, x_0_to_t[i], particle)
+			# log alpha = log p - log q
+			log_weight = log_p_x_z_t - log_q
+			log_wts.append(log_weight)
+		return torch.cat(log_wts)
 
 	def update_weights(self, alpha):
 		'''
@@ -184,9 +189,9 @@ class SMC(object):
 
 
 	def compute_expected_value(self, weights, particles):
-		return torch.sum(self.weights.unsqueeze(dim=-1) * particles, dim=0)
+		return torch.sum(weights.unsqueeze(dim=-1) * particles, dim=0)
 	def compute_variance(self, weights, particles):
-		return torch.var(self.weights.unsqueeze(dim=-1) * particles, dim=0)
+		return torch.var(weights.unsqueeze(dim=-1) * particles, dim=0)
 
 	def particle_filter(self, x):
 		'''
@@ -202,38 +207,49 @@ class SMC(object):
 		'''
 		# time-step t=0: sample init particles and compute importance weights
 		t=0
-		for i in range(0, self.num_particles):
-			# z_0^i = q(z_0)
-			## vectorize sampling across particles -> should be easy since they all have the same form
-			# particle i, time 0
-			self.particles[i, 0] = self.q_init_sample()
-			# compute log unnormalized weight
-			self.weights[i] = self.compute_incremental_weight(
-				self.particles[i, 0:t+1], x[0:t+1])
-		# normalize weights
-		self.compute_inter_marginal_likelihood(t, torch.exp(self.weights))
-		self.weights = self.normalize_log_weights(self.weights)
+		# sample init particles
+		init_samples = self.q_init_sample(self.num_particles)
+		# append
+		self.particles[:, 0] += init_samples.flatten()
+		# compute weights
+		init_log_wts = self.compute_incremental_weight(
+				self.particles[:, 0:t+1], x[0:t+1])
+
+		self.inter_marginal[t] = self.compute_inter_marginal_log_likelihood_vec(init_log_wts)
+		#self.weights = self.normalize_log_weights(init_log_wts)
+
+		logsoftmax = F.log_softmax
+		self.weights = logsoftmax(init_log_wts, dim=0)
+
 		# update log marginal likelihood
 		# time-step t > 0
 		for t in range(1, self.T):
 			# sample ancestor indices, update particle trajectories
-			self.multinomial_resampling()
-			self.reset_weights()
-			for i in range(0, self.num_particles):
-				# z_t^i ~ q_t(z_t | x_1:t, z_1:t-1)
-				self.particles[i, t] = self.q_sample(x[0:t+1], self.particles[i, 0:t])
-				# compute log unnormalized weight
-				self.weights[i] = self.compute_incremental_weight(
-					self.particles[i, 0:t+1], x[0:t+1])
-			self.compute_inter_marginal_likelihood(t, torch.exp(self.weights))
-			self.weights = self.normalize_log_weights(self.weights)
+			#self.multinomial_resampling()
+			# multinomial resampling
+			sampler = Categorical(logits=self.weights)
+			# sample indices over particles
+			samples = sampler.sample(torch.Size((self.num_particles,)))
+			# identify particles corresponding to indices
+			self.particles = self.particles[samples]
+			self.weights = torch.ones(self.num_particles, device=device)
+
+			q_t = Normal(self.particles[:, t-1], torch.exp(self.q_transition_log_scale))
+			self.particles[:, t] =  q_t.sample()
+			self.weights = self.compute_incremental_weight(self.particles[:, 0:t+1], x[0:t+1])
+			self.inter_marginal[t] = self.compute_inter_marginal_log_likelihood_vec(self.weights)
+			self.weights = logsoftmax(self.weights, dim=0)
 			print t
 
 	def estimate(self, x):
 		self.particle_filter(x)
-		exp_value = self.compute_expected_value(self.weights, self.particles)
-		var = self.compute_variance(self.weights, self.particles)
+		exp_value = self.compute_expected_value(torch.exp(self.weights), self.particles)
+		var = self.compute_variance(torch.exp(self.weights), self.particles)
 		return exp_value, var
+
+	def compute_inter_marginal_log_likelihood_vec(self, log_wx):
+
+		return (math.log(1.0) - math.log(self.num_particles) + torch.logsumexp(log_wx, dim=0)).unsqueeze(dim=0)
 
 	def compute_inter_marginal_likelihood(self, t, wx):
 		'''
@@ -247,7 +263,7 @@ class SMC(object):
 		'''
 			sum over time
 		'''
-		return torch.sum(torch.log(self.inter_marginal))
+		return torch.sum(self.inter_marginal)
 
 class SMCOpt(object):
 	'''
@@ -287,7 +303,6 @@ class SMCOpt(object):
 		#self.particles = torch.zeros((self.num_particles, self.T))
 		#self.particles_list = [torch.zeros((self.num_particles, self.T))]
 		#self.inter_marginal = torch.zeros(self.T)
-		embed()
 
 		self.init_params()
 	def init_params(self):
@@ -336,7 +351,9 @@ class SMCOpt(object):
 			z_sample = z_0_to_t[i][-1] # confirm this is the right sample
 			particle = z_0_to_t[i][:-1]
 			# log p_t(x_t, z_t | x_1:t-1, z_1:t-1)
-			log_p_x_z_t = self.model.logjoint_t(x_0_to_t, z_0_to_t[i])
+			log_lh, log_prior = self.model.logjoint_t(x_0_to_t, z_0_to_t[i])
+			log_p_x_z_t = log_lh + log_prior
+			#log_p_x_z_t = self.model.logjoint_t(x_0_to_t, z_0_to_t[i])
 			# log q_t(z_t | x_1:t, z_1:t-1 )
 			if particle.nelement() == 0:
 				log_q = self.q_init_logprob(z_sample)
@@ -423,7 +440,10 @@ class SMCOpt(object):
 		init_log_wts = self.compute_incremental_weight(self.particles_list[-1][:,0:t+1], x[0:t+1])
 
 		# add to log marginal likelihood
-		log_marginal_ll.append(self.compute_inter_marginal_likelihood(init_log_wts))
+		# normalize first
+		
+
+		log_marginal_ll.append(self.compute_inter_log_marginal_likelihood(init_log_wts))
 		
 		# normalize weights and save
 		self.weights.append(self.normalize_log_weights(init_log_wts))
@@ -441,13 +461,15 @@ class SMCOpt(object):
 		
 			log_weight_t = self.compute_incremental_weight(self.particles_list[-1][:, 0:t+1], x[0:t+1])
 			
-			log_marginal_ll.append(self.compute_inter_marginal_likelihood(log_weight_t))
+			log_marginal_ll.append(self.compute_inter_log_marginal_likelihood(log_weight_t))
 
 			self.weights.append(self.normalize_log_weights(log_weight_t))
-		
+
+			print t
+
 		return torch.sum(torch.cat(log_marginal_ll))
 	
-	def compute_inter_marginal_likelihood(self, log_wx):
+	def compute_inter_log_marginal_likelihood(self, log_wx):
 		'''
 			log 1/n sum_i w_t^i
 		'''
