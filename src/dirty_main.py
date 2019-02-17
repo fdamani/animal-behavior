@@ -18,16 +18,20 @@ from torch.distributions import Normal, Bernoulli, MultivariateNormal
 import models
 from models import LDS, LogReg_LDS, LinearRegression
 import inference
-from inference import Map, MeanFieldVI, StructuredVITriDiagonal
+from inference import EM, Map, MeanFieldVI, StructuredVITriDiagonal
 import smc
 from smc import IS, SMC
 import vsmc
 from vsmc import VSMC
 import psutil
+import learning_dynamics
+from learning_dynamics import LearningDynamicsModel
+import sim
+from sim import generateSim 
 process = psutil.Process(os.getpid())
 
 # set random seed
-torch.manual_seed(7)
+torch.manual_seed(10)
 np.random.seed(7)
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 # dtype = torch.cuda.FloatTensor if torch.cuda.is_available() else torch.float
@@ -43,93 +47,92 @@ if __name__ == '__main__':
 
     inference_types = ['map', 'mfvi', 'is', 'smc', 'vsmc']
     inference_type = inference_types[4]
+    # T = 200 # 100
     T = 100
-    num_particles = 1000
+    num_particles = 20# 200
     # time-series model
-    if inference_type == 'smc' or inference_type == 'vsmc':
-        model = LogReg_LDS(init_prior=(0.0, 0.1), transition_scale=0.1)
-        x, z_true = model.sample(T=T)
-        z_true = torch.cat(z_true)
-    else:
-        model = LinearRegression(num_samples=10)
-        x, y, z_true = model.sample(T=T)
+    # sim model parameters
+    dim = 3
+    init_prior = ([0.0]*dim, [math.log(0.1)]*dim)
+    transition_scale = [math.log(0.1)] * dim
+    beta = 4. # sigmoid(4.) = .9820
+    log_alpha = -1.
+    model = LearningDynamicsModel(init_prior, transition_scale, beta, log_alpha, dim=3)
+    #model = LogReg_LDS(init_prior=(0.0, 0.02), transition_scale=1e-3)
+    num_obs_samples = 2
+    y, x, z_true = model.sample(T=T, num_obs_samples=num_obs_samples)
 
-    inference = None
-    if inference_type == 'map':
-        inference = Map(model)
-    elif inference_type == 'mfvi':
-        inference = MeanFieldVI(model)
-    elif inference_type == 'is':
-        inference = IS(model)
-    elif inference_type == 'smc':
-        inference = SMC(model, num_particles=num_particles, T=T)
-    elif inference_type == 'vsmc':
-        #lx = torch.tensor([1.0], requires_grad=True, device=device)
-        init_prior = (0.0, 0.3)
-        transition_scale = 0.2
-        q_init_latent_loc = torch.tensor([init_prior[0]], 
-            requires_grad=False, device=device)
-        q_init_latent_log_scale = torch.tensor([math.log(init_prior[1])], 
-            requires_grad=False, device=device)
-        q_transition_log_scale = torch.tensor([math.log(transition_scale)], 
-            requires_grad=True, device=device)
+    plt.plot(to_numpy(z_true))
+    # plt.show()
+    # model params
+    init_prior = ([0.0]*dim, [math.log(0.1)]*dim)
+    transition_scale = [math.log(0.1)] * dim
+    model = LearningDynamicsModel(init_prior, transition_scale, beta, dim=3)
+    # proposal params
+    smc_init_prior = ([0.0]*dim, [math.log(0.1)]*dim)
+    smc_transition_scale = [math.log(0.1)] * dim
+    q_init_latent_loc = torch.tensor([smc_init_prior[0]], 
+        requires_grad=False, device=device)
+    q_init_latent_log_scale = torch.tensor([smc_init_prior[1]], 
+        requires_grad=False, device=device)
+    q_transition_log_scale = torch.tensor([smc_transition_scale], 
+        requires_grad=False, device=device)
 
-        variational_params = [q_init_latent_loc,
-                              q_init_latent_log_scale,
-                              q_transition_log_scale]
-        inference = VSMC(model,
-                         variational_params, 
-                         num_particles=num_particles,
-                         init_prior=(0.0,0.1),
-                         transition_scale=0.1,
-                         T=T)
-    else:
-        print 'error: select valid inference.'
-        sys.exit()
+    variational_params = [q_init_latent_loc,
+                          q_init_latent_log_scale,
+                          q_transition_log_scale]
+    inference = VSMC(model,
+                     variational_params, 
+                     num_particles=num_particles,
+                     T=T)
     # dim = x.size(1)
     dim = len(x)
     # cast as torch tensors
     x = torch.tensor(x, dtype=dtype, device=device)
-    data = x
-    # if inference_type != 'smc':
-    #   data = [x,y]
+    data = [y, x]
 
-    #exact_marginal_ll = model.log_marginal_likelihood(T, x)
-    #inference_smc = SMC(model, num_particles=num_particles, T=T)
-    # mean, var = inference_smc.estimate(data)
-    # smc_marginal_ll = inference_smc.compute_log_marginal_likelihood()
     smcopt_marginal_ll = inference.forward(data)
-    mean, var = inference.smc.estimate(data)
-    #vsmc_marginal_ll = inference.forward(data)
+    mean, scale = inference.smc.estimate(data)
+    log_weights = inference.smc.weights[-1]
+    weights = torch.exp(log_weights)
+    particles = inference.smc.particles_list[-1] # T x particles x dim
     print smcopt_marginal_ll#, exact_marginal_ll
     plt.plot(to_numpy(z_true), label="true")
-    plt.plot(to_numpy(mean), label="smc")
+    plt.plot(np.arange(mean.size(0)), to_numpy(mean), 'k-', label='smc')
+    #plt.fill_between(np.arange(mean.size(0)), to_numpy(mean) - to_numpy(scale), 
+    #    to_numpy(mean) + to_numpy(scale), alpha=.5)
     plt.legend(loc='lower right')
-    plt.show()
+    # plt.show()
+    # embed()
+    
 
-    embed()
-    print 'exact_marginal_ll: ', exact_marginal_ll#, ' smc: ', smc_marginal_ll,
-    # create list of params to optimize
-    #opt_params = variational_params
-    opt_params = [q_transition_log_scale]
+    # given nonparametric posterior learn model parameters
+    beta_init = 2. # sigmoid(-4.) = .0180
+    log_alpha_init = -2.
+    model = LearningDynamicsModel(init_prior, transition_scale, beta_init, log_alpha_init, dim=3)
+    #opt_params = [model.beta]
+    opt_params = [model.beta, model.log_alpha]
     print_every = 1
+    em = EM(model)
     # specify optimization objective
-    optimizer = torch.optim.Adam(opt_params, lr = .01)
+    optimizer = torch.optim.Adam(opt_params, lr = .1)
     outputs = []
-    for t in range(100):
+    for t in range(300):
         #old_lambda = lx.detach().cpu().numpy()
         optimizer.zero_grad()
-        output = -inference.forward(data)#, opt_params)
-        mean, var = inference.smc.estimate(data)
-        print np.linalg.norm(z_true.detach().cpu().numpy() - mean.detach().cpu().numpy())
-        outputs.append(output.item())
-        # if t % print_every == 0:
-        print 'iter: ', t, ' output: ', output.item(), \
-            q_init_latent_loc.detach().cpu().numpy(), \
-            np.exp(q_init_latent_log_scale.detach().cpu().numpy()), \
-            np.exp(q_transition_log_scale.detach().cpu().numpy())
+        output = -em.forward(y, x, particles, weights)#, opt_params)
+        print t, output, opt_params[0].detach().cpu().numpy(), opt_params[1].detach().cpu().numpy()
+        # mean, var = inference.smc.estimate(data)
+        # print np.linalg.norm(z_true.detach().cpu().numpy() - mean.detach().cpu().numpy())
+        # outputs.append(output.item())
+        # # if t % print_every == 0:
+        # print 'iter: ', t, ' output: ', output.item(), \
+        #     q_init_latent_loc.detach().cpu().numpy(), \
+        #     np.exp(q_init_latent_log_scale.detach().cpu().numpy()), \
+        #     np.exp(q_transition_log_scale.detach().cpu().numpy())
         output.backward(retain_graph=True)
         optimizer.step()
+        outputs.append(output)
     embed()
     plt.plot(outputs)
 

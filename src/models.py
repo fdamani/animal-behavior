@@ -311,64 +311,6 @@ class LogReg_LDS(object):
         return log_lh, log_prior
         #return log_lh + log_prior
 
-class LearningDynamicsModel(object):
-    def __init__(self):
-        # initialize parameters
-        self.init_latent_loc = 0.0
-        self.init_latent_scale = 0.1
-        self.transition_scale = 0.1
-        self.sigmoid = nn.Sigmoid()
-
-    def sample(self, T):
-        '''
-            sample latent variables and observations
-        '''
-        return 1
-
-    def basis(self, x):
-        '''
-        given input x, learn a basis with a useful hidden representation
-        op 1: 1D convolution on x outputs high-d hidden representation per time point
-        op 2: rnn outputting hidden rep at each time point
-        might want to switch to a class if multiple options we want to try
-        '''
-        return 1
-
-    def log_joint(self, x, latent_mean, model_params):
-        '''
-        input: x (observations T x D)
-        input: latent_mean
-        return logpdf under the model parameters
-        '''
-        return 1
-
-    def prior(self):
-        return 1
-
-    def likelihood(self):
-        return 1
-
-    def rat_reward(self):
-        '''rat's reward func
-            might want to switch this to a class if multiple options
-        '''
-        return 1
-
-    def grad_rat_reward(self):
-        '''
-            rat's gradient of reward func
-            might want to swtich to a class if multiple ways it might compute gradient
-            - score function
-            - log loss
-            - NN inducing.
-        '''
-        return 1
-
-    def grad_warping(self):
-        '''takes in gradient and warps through a nonlinear function'''
-        return 1
-
-
 def print_memory():
     print("memory usage: ", (process.memory_info().rss)/(1e9))
 

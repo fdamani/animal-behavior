@@ -25,6 +25,13 @@ np.random.seed(7)
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 dtype = torch.float32
 
+class EM(object):
+	def __init__(self, model):
+		self.model = model
+	def unpack_params(self, params):
+		return params[0]
+	def forward(self, y, x, particles, weights):
+		return self.model.complete_data_log_likelihood(y, x, particles, weights)
 
 class Map(object):
 	def __init__(self, model):
