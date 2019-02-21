@@ -32,7 +32,7 @@ process = psutil.Process(os.getpid())
 torch.manual_seed(10)
 np.random.seed(7)
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-# dtype = torch.cuda.FloatTensor if torch.cuda.is_available() else torch.float
+#dtype = torch.cuda.float if torch.cuda.is_available() else torch.float
 dtype = torch.float32
 
 def to_numpy(tx):
@@ -69,7 +69,8 @@ if __name__ == '__main__':
         # plt.show()
         # model params
     else:
-        x, y, rw = read_and_process(num_obs=10)
+        x, y, rw = read_and_process(num_obs=25)
+        #x = torch.tensor(x, device=device)
         x = torch.tensor(x, dtype=dtype, device=device)
         y = torch.tensor(y, dtype=dtype, device=device)
         rw = torch.tensor(rw, dtype=dtype, device=device)

@@ -51,10 +51,10 @@ class SMCOpt(object):
 		self.init_params()
 	
 	def init_params(self):
-		self.particles_list = [torch.zeros((self.T, self.num_particles, self.dim))]
+		self.particles_list = [torch.zeros((self.T, self.num_particles, self.dim), device=device)]
 		
 		#self.particles_list = [torch.zeros((self.num_particles, self.T))]
-		self.inter_marginal = torch.zeros(self.T)
+		self.inter_marginal = torch.zeros(self.T, device=device)
 		self.weights = []
 
 	def q_init_sample(self, num_samples):

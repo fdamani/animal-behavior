@@ -53,9 +53,9 @@ class EM(object):
     def init_model(self,
                    init_prior_loc = 0.0,
                    init_prior_log_scale = 0.0,
-                   transition_log_scale = math.log(1e-2),
-                   beta = 10.0,
-                   log_alpha = math.log(1e-10),
+                   transition_log_scale = math.log(0.33),
+                   beta = 5.0,
+                   log_alpha = math.log(1e-3),
                    log_sparsity=math.log(1e-2)):
         init_prior = ([init_prior_loc]*self.dim, [init_prior_log_scale]*self.dim)
         transition_log_scale = [transition_log_scale]#*self.dim
@@ -122,7 +122,7 @@ class E_Step(object):
     def __init__(self, 
                  model,
                  T,
-                 num_particles=25):
+                 num_particles=50):
 
         self.model = model
         self.inference = None
@@ -169,7 +169,7 @@ class M_Step(object):
         #                    self.model.beta, 
         #                    self.model.log_alpha]
         self.optimizer = torch.optim.Adam(self.opt_params, lr = lr)
-        self.num_iters = 300
+        self.num_iters = 500
 
     def unpack_params(self, params):
         return params[0]
