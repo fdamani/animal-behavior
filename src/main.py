@@ -69,7 +69,7 @@ if __name__ == '__main__':
         # plt.show()
         # model params
     else:
-        x, y, rw = read_and_process(num_obs=100)
+        x, y, rw = read_and_process(num_obs=10)
         x = torch.tensor(x, dtype=dtype, device=device)
         y = torch.tensor(y, dtype=dtype, device=device)
         rw = torch.tensor(rw, dtype=dtype, device=device)

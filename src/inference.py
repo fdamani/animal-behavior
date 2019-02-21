@@ -53,9 +53,9 @@ class EM(object):
     def init_model(self,
                    init_prior_loc = 0.0,
                    init_prior_log_scale = 0.0,
-                   transition_log_scale = math.log(1e-3),
-                   beta = 4.0,
-                   log_alpha = math.log(1e-4),
+                   transition_log_scale = math.log(1e-2),
+                   beta = 10.0,
+                   log_alpha = math.log(1e-10),
                    log_sparsity=math.log(1e-2)):
         init_prior = ([init_prior_loc]*self.dim, [init_prior_log_scale]*self.dim)
         transition_log_scale = [transition_log_scale]#*self.dim
@@ -91,8 +91,9 @@ class EM(object):
 
         
             plt.legend(loc = 'upper left')
-            plt.draw()
-            plt.pause(1.0/60.0)
+            #plt.draw()
+            plt.savefig('./fig.png')
+            #plt.pause(1.0/60.0)
             # self.init_model(init_prior_loc = 0.0,
             #        init_prior_log_scale = 0.0,
             #        transition_log_scale = math.log(1e-2),
@@ -308,4 +309,7 @@ class FIVO(object):
 
     def forward(self):
         return 1
+
+def print_memory():
+    print("memory usage: ", (process.memory_info().rss)/(1e9))
 
