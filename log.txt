@@ -1,5 +1,336 @@
+2.21.19
+	- speed up smc to be parallelized across particles.
+	- organize and process many datasets to allow for param estimation 
+		across multiple datasets
+	- evaluation metrics
+		- marginal likelihood comparing models.
+			- for each "model param setting" have a dist over marginal likelihoods
+				- box and whisker type plot
+			- no alpha vs one alpha vs alpha per dimension
+				- if alpha per dimension is interesting, think of a way
+					of showing this info. maybe something with how its 
+					correlated with the latent trajectories of those latents.
+				- alpha with a schedule. exponential weighting. 
+			- (momentum term)
+			- no sparsity versus learned sparsity (sparsity per dim?)
+		- for learned model, plot marginal likelihood as a function of sparsity.
+			- show that its not constant as sparsity becomes arbitrarily small.
+		- hold out 10% of data. how well can you predict it?
+		- PPC. given model params, sample 100 trajectories and compute smoothed reward with standard deviations. compare to true.
+	- poster
+		- latex
+		- figures
+		- put in placeholders, math, motivation, some references
+
+
+	- evaluation metrics
+		- ppc -> reward plot over time.
+		- hold out 10% of trials and report predictive log likelihood
+			- how to train with missing y's?
+				- at trial t with missing y, how to compute	
+				log likelihood?
+	- convex combo of l1 and l2 penalty. X
+		- (1-alpha)*z + alpha * sgn(z)
+
+	- optional: parallelize across particles for expected
+		complete data log likelihood (only nec if we want to use 1k particles
+		which we might)
+
+2.20.19
+	- feature engineering.
+		- choice hist, rw side hist, sensory hist.
+	- alpha -> to a vector
+	- learn transition log scales.
+	- single sparsity parameter.
+
+
+
+
+	- run just with sparsity on simulation. 
+		- can we recover params properly?
+			- try diff inits. start with large and small.
+			- yes it works fine. close interplay between scale
+			and sparsity param.
+		- any issue with optimiation?
+		- no issue
+
+	- run sparsity param on real data. what does it converge to?
+	- add learning. what does it convert to?
+	- add new features.
+	- speed up smc -> parallelize over particles
+
+
+
+
+2.19.19
+	- morning agenda:
+		- sparsity parameter. test in simulation.
+		- alpha vector of parameters.
+		- what priors for different params?
+			- needed to margianlize variables
+
+	- evening agenda:
+		- do not need to marginalize model parameters, just optimization
+		- no soft thresholding. 
+		- convex combination of l2 and l2 param
+
+
+2.18.18
+	- agenda:
+		- finish editing new em inference code. X
+			- almost done. figure out why smc code is crashing. compare input to
+			old input. b/c old WORKS.
+		- check scale of tones. (needs to be in log space so 1 length difference in amplitude)
+			- i also normalized.
+		- feature engineering. (averaging over last 5 trials)
+		- scale per dimension
+		- sparsity parameter (want a vector one per dimension)
+			- show we can recover parameter in simulation.
+		- alpha vector
+		- priors on everything to allow for marginalization
+			- assess priors based on support from point estimate
+		- VI in m-step
+		- how to marginalize sparsity parameter?
+		- learning rate schedule -> exponential decay. 
+		- momentum.
+		- compare smc proposals
+			- simple ar
+			- add structure to smc proposal as prior
+			- show marginal likelihood improves when adding structure.
+		
+
+
+	talk with JP
+	- update:
+		- EM with particle filtering
+		- working on simulated and real
+		- some features done.
+	- talk about
+		- sparsity X 
+		- VI in m-step: priors over model params
+			- beta, alpha, lasso, and transition scale
+				- beta gaussian
+					- for beta < 1, which OU process.
+					- values closer to 0 keeps z to have low variance.
+					- different betas allow for different margianl variance. 
+				- what is the effective marginal variance over z.
+				- sigma^2 and beta will determine 
+					- beta and c are pulling it towards 0 and sigma^2
+				- gamma on positive reals, or gaussian on log alpha space.
+				- log normal prior.
+			- inverse gamma on sigma^2.  
+
+		- additional features
+			- intercept, x1, x2
+				: -1 if choice was left
+				: +1 if choice was right
+			- side of the true reward
+				- -1 if reward was side left
+				: win/stay lose switch
+				- all i pay attention to is what side i should've gone.
+			- side matters, side of true reward.
+			- more choice history and more true side history. 
+			- or filtered history. 
+				- how much reward came from left side.
+			- average choice 
+			- average reward. 
+
+
+	- alpha parameter.. and set lasso and beta param ahead of time.
+	- nested model comparison. how much better do you do with a single
+		alpha versus more? 
+		- quantify. 
+		- intuitive ordering. 
+
+
+
+	- momentum?
+	- diminishing learning rate
+
+
+	- difference between 1 and 2 should be teh same betwee n2 adn 3 
+
+
+
+
+	- exponential family. 
+
+		- model comparison
+
+	- different alphas. 
+
+	- sparsity penalty
+		- not traditional formulation
+		- why does this keep value above zero?
+		- why not constrain the l1 norm of z_t-1 and have a sparsity penalty?
+
+	- inference and estimation
+		- EM with particle filtering and MLE for model params
+		- VI in m-step: need priors for model parameters
+			- right now-> i feed beta through a sigmoid
+			- assume model alpha must be >= 0. therefore model log alpha.
+	- working on simulated data and real data
+	- features:
+		- choice history (past 1-3 trials): -1 if choice was 0 (left), +1 if choice was 1 (right)
+		- reward side history: -1 if reward side was 0 (left), +1 if reward side was 1 (right) 
+		- win/stay lose switch? choice * reward
+			- win/stay will be +1, lose/switch will be -1.
+		- anything else?
+	- should reward be (0,1) or (-1,1)?
+	- normalizing stimuli seems wrong - ruins relative scale between the two.
+	- goal is interpretable structure in latents: if x is high dimensional with rnn: learn low-d structure and model its evolution.
+
+
+	- what are different "models" that we want to compare under a marginal likelihood? in some ways this is the "easy" part now that i have inference/estimation code working.
+		- policy gradient versus other learning algorithms.
+		- epsilon greedy (confirm this is a mixture model?) versus greedy versus thompson sampling. 
+			- how does thompson sampling work..what does it mean for the rat to maintain a posterior over its beliefs? this must be different than our posterior over its latent trajectory? 
+			- how to write likelihood for these... epsilon * uniform + (1-epsilon)*log reg.
+
+	agenda:
+		- feature engineering.
+		- proper EM 
+			- (with vi in m-step to compute marginal likelihoods)
+			- if m-step gives posterior over model parameters, then we must integrate out model params in e-step
+				- e-step is now expected log joint under dist over model params.
+		- modeling extensions
+			- lasso term for dynamics prior
+			- fit rnn on input + sparse output.
+			- interpret structure in latents.
+
+
+AGENDA:
+	- more model params
+		- add sparsity component -> review last meeting notes. see if jonathan can chat tomorrow.
+			- why not constrain the l1 norm of z_t-1 and have a sparsity penalty?
+		- learning rate per dimension? (simple add - save for later)
+	- smc proposal should reflect structure. 
+	- write EM class
+		- e-step is particle filtering
+		- m-step should be its own class with option for MLE or VI (for now just do MLE)
+			- takes as an argument the expected complete data log likelihood
+	- have initial models with REAL data. 
+		- feature engineering. (identify a bunch of different features and relevant theories)
+			- non-reward related features - different types of strategies that the rat uses
+				- win stay / lose switch
+				- left vs right rewards 
+					- number of rewards on left vs number of rewards on right
+		- batch data into 50 samples per time point
+		- given model parameters can we do posterior inference
+	- what are different "models" that we want to compare under a marginal likelihood? in some ways this is the "easy" part now that i have inference/estimation code working.
+		- policy gradient versus other learning algorithms.
+		- epsilon greedy (confirm this is a mixture model?) versus greedy versus thompson sampling. 
+			- how does thompson sampling work..what does it mean for the rat to maintain a posterior over its beliefs? this must be different than our posterior over its latent trajectory? 
+			- how to write likelihood for these... epsilon * uniform + (1-epsilon)*log reg.
+	- semi-parametric model.
+		- rnn with architecture creating sparse representation. need a sparse prior on weights of logistic regresssion.
+
+2.16.18
+	- reward for individual time pointsX  
+	- transition to multiple by summing or averaging gradient. X
+	- we have wroking estimation of beta and alpha with reward. X
+	- we need complete data log likelihood to be FASTER. X
+		- vectorize computation -> dont loop over time. compute likelihood and prior in a vectorized fashion using matrix multiplication X
+			- this will involve adding a a time dimension at the beginning of everything. X
+
+2.15.18
+
+	-finish implementing rat reward for one time point at a time
+		- once we have this working
+		- transitioning to multiple should involve just summing and taking mean if needed
+		- show we can accurately estimate alpha
+	- show we can learn all of these parameters with em
+	- work on real data
+		- feature engineering: 
+
+
+	- increase dimensionality of X and Z to 4. X this is working.
+	- try fitting to nick's simulation. X
+	- once this works, add dynamics and do parameter estimation in M-step.
+		- add alpha * policy gradient update
+		- add sparsity dynamics described in the meeting yesterday
+	- transition to real data 
+		- feature engineering
+			- start with two tones and a bias
+				- fit model and params
+			- add different kinds of history
+				- refit
+				
+
+	- introduce parameters to transition dynamics -> can we recover them with EM?
+		- beta term in front of z.
+		- alpha and learning component.
+	- fit this model to data.
+		- feature engineering
+			- start with sound1, sound2, intercept with simple ar dynamics.
+				- a) show sound1 goes up and sound2 goes down (or vice versa) and bias goes to 0.
+			- add past reward, etc. (look at nicks, jiyuns paper ask JP about other features that
+				would be interesting to cosyne community)
+
+
+
+
+		set up we liked: (0.0, 0.1) for everything. 50 obs samples, 250 num particles, t = 100
+
+
+2.14.18
+
+	- slower timescale (one latent per ten steps) is EQUIVALENT to slower mixing
+		- so this means prior needs to be slower
+			- it doesn't matter how the data is generated...but at training time,
+				model parameters need to be SMALLER than the simulation that generated the data.
+
+
+	- finish implementing actual model. 
+		- increase x dimension to 5. make sure the rest of the code works.
+		- if we sample multiple realizations from the latent and use all of the extra samples
+			for the likelihood, can we converge to the right dynamics. assess error as the number
+			of observations goes down.  X
+				- 
+
+		- add more options to dynamics prior.
+			- learning component. (policy gradient)
+			- alpha learning rate
+	- parameter estimation 
+		- can you recover alpha?
+		- complete data log likelihood under gaussian with empirical mean, scale X
+
+	- try out with nicks simulation code -> how does performance compare to ours?
+	- try out model with multiple realizations of observation? single latent trajectory for each
+		time point generates multiple observations. 
+
+	- look at nicks simulation code -> try using it to generate data. how does it compare to ours? 
+	- 
+
+
 2.13.18
+	evening agenda:
+		- SMC em.
+			- we have particle filtering working. check to see if it is computing the correct variance?
+			- m-step: stochastic optimization of complete data likelihood under non-parametric posterior. 
+
+
+	- talk with rpa
+		- start with smc
+		- do smc with EM
+			- e-step: non-parametric approx of the posterior conditioned on model parameters
+			- m-step: gradients of expected complete data log likelihood with respect to model params
+				under approximate posterior.
+		- specify structure of transition dynamic as the proposal for the smc.
+		- start with the simple thing (just smc) and when it breaks we deal with it then.
+		- don't jump to fivo/smc. questionable whether it works. they dont backprop gradients through resampling!
+			(which is what the paper is about)
+
+
+
+
+	- confirmed forward pass of particle filter is working and giving correct answer.
+
 	- to do
+		- look at marginal ll computation from before vs now. how is it different? how does it compare to papers?
+		- slowly shift smc sampler to be vectorized and use the ideas from smcopt. where does it break?
+
+		
 		- check how to compute log marginal ll
 		- confirm approach in smcOPT gives same value as smc approach for log marginal lh.
 		- look at papers and figure out a good simple test.
