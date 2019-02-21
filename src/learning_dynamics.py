@@ -115,10 +115,27 @@ class LearningDynamicsModel(object):
 		'''
 		T = y.size(0)
 		logprob = 0
+
 		logprob += self.log_init_prior(z[0][None])
 		logprob += self.log_prior_vec(z, y, x)
 		logprob += self.log_likelihood_vec(y, x, z)
 
+		return logprob
+
+	def log_joint_batch(self, y, x, z):
+		''' vectorize over particles and time.
+		input: x (observations T x D)
+		input: latent_mean
+		return logpdf under the model parameters
+		'''
+		T = y.size(0)
+		z = z.transpose(1,0)
+		# vector of length num particles
+		logprob = self.log_init_prior_batch(z[0])
+		z = z.transpose(1,0)
+		# add elementwise
+		logprob += self.log_prior_batch_compl(z, y, x)
+		logprob += self.log_likelihood_compl_batch(y, x, z)
 		return logprob
 
 	def log_likelihood_vec(self, y, x, z):
@@ -182,8 +199,6 @@ class LearningDynamicsModel(object):
 		avg_gradient = torch.mean(per_sample_gradient, dim=1)
 		return avg_gradient
 
-
-
 	def grad_rat_obj_score_batch(self, y, x, z):
 		'''
 			single time point with batch of particles
@@ -191,27 +206,34 @@ class LearningDynamicsModel(object):
 			grad log p(y|x, z)
 			grad rat objective function using score function estimator
 
-			x is obs x dim
-			y is obs x 1
-			z is particles x dim
+			x is time x obs x dim
+			y is time x obs x 1
+			z is time x particles x dim
 
 		'''
-		z = z[None]
-		x = x[None]
+		if len(z.size()) == 2:
+			z = z[None]
+			x = x[None]
+			y = y[None]
+			T = 1
+		else:
+			T = z.size(0)
+			assert T == x.size(0)
 		num_particles = z.size(1)
 		prob_y_1_given_x_z = self.rat_policy_batch(x, z) # T x obs
 		prob_y_0_given_x_z = 1.0 - prob_y_1_given_x_z
 
 		# r(action=1, x)
-		# 1 x 250
+		# T x 250
 		r_y_1_x = self.rat_reward_vec(torch.tensor([1.]), x)
 		r_y_0_x = 1.0 - r_y_1_x
 
 		# grad of logistic regression: x_n(y_n - sigmoid(z^t x))
-		y_1 = torch.ones(1, num_particles, y.size(0))
+		y_1 = torch.ones(T, num_particles, x.size(1))
+		#assert x.size(1) == 250
 		grad_log_policy_y1 = self.grad_rat_policy_batch(y_1, x, z)
 
-		y_0 = torch.zeros(1, num_particles, y.size(0))
+		y_0 = torch.zeros(T, num_particles, x.size(1))
 		grad_log_policy_y0 = self.grad_rat_policy_batch(y_0, x, z)
 
 		per_sample_gradient = prob_y_1_given_x_z[:, :, :, None] * grad_log_policy_y1 * \
@@ -354,6 +376,25 @@ class LearningDynamicsModel(object):
 		return torch.sum(obs.log_prob(y_t))
 
 	def complete_data_log_likelihood(self, y, x, particles, weights):
+		'''vecotrized computation over particles and time.
+			E_q[log p(y, x, z)]
+			q is approximate posterior
+			we want gradients with respect to model parameters theta (not does not depend on q)
+			compute monte carlo approximation.
+
+
+			**need to vectorize this so its operations on particles x time x num observations x dimension
+			**start with removing time for loop
+		'''
+		num_particles = weights.size(0)
+		expected_value = 0
+		particles = particles.transpose(1, 0)
+		log_prob_vec = self.log_joint_batch(y, x, particles)
+
+		expected_value = torch.dot(log_prob_vec, weights)
+		return expected_value
+
+	def complete_data_log_likelihood_serial(self, y, x, particles, weights):
 		'''
 			E_q[log p(y, x, z)]
 			q is approximate posterior
@@ -429,28 +470,32 @@ class LearningDynamicsModel(object):
 		scale = torch.exp(self.transition_log_scale)
 		prior = Normal(mean, scale)
 		return torch.sum(prior.log_prob(z_t), dim=-1)
-		# z_t = z[-1][None]
-		# z_prev = z[:-1]#[None]
-		# y_prev =  y[-2][:, None]
-		# x_prev = x[-2]#[None]
 
-		# grad_rat_obj = self.grad_rat_obj_score(y_prev, x_prev, z_prev[-1][None])
-		
-		
-		# learning = torch.exp(self.log_alpha) * grad_rat_obj
-		
+	def log_prior_batch_compl(self, z, y, x):
+		'''
+			input: z_1:t
+			parameterize p(z_t | z_t-1, theta)
+		'''
+		# time points 1:T
+		z_curr = z[:, 1:]
+		# time points 0:T-1
+		z_prev = z[:, 0:-1]
+		x_prev = x[:, 0:-1]
+		z = z.transpose(1,0)
+		grad_rat_obj = self.grad_rat_obj_score_batch(y, x, z)[0:-1]
+		learning = torch.exp(self.log_alpha) * grad_rat_obj
 
-		# penalty = self.sigmoid(self.beta)
-		# regularization = penalty * z_prev[-1] + (1.0 - penalty) * -torch.sign(z_prev[-1])
-		# mean = learning + regularization
-
-		# # mean = l2 + learning - l1
-		# scale = torch.exp(self.transition_log_scale)
-
-		# prior = Normal(mean, scale)
-		# return torch.sum(prior.log_prob(z_t))
-
-
+		penalty = self.sigmoid(self.beta)
+		#regularization = penalty * z_prev[:, -1] + (1.0 - penalty) * -torch.sign(z_prev[:, -1])
+		regularization = (penalty * z + (1.0 - penalty) * -torch.sign(z))[0:-1]
+		mean = learning + regularization
+		scale = torch.exp(self.transition_log_scale)
+		prior = Normal(mean, scale)
+		log_prob = prior.log_prob(z[1:])
+		# sum over dimension
+		log_prob = torch.sum(log_prob, dim=(0, 2)) # sum over time and dimension
+		return log_prob
+	
 	def log_prior_t(self, z, y, x):
 		'''
 			input: z_1:t
@@ -550,7 +595,7 @@ class LearningDynamicsModel(object):
 		'''
 		prior = Normal(self.init_latent_loc, torch.exp(self.init_latent_log_scale)) 
 		return torch.sum(prior.log_prob(z))
-	
+
 
 	def log_init_prior_batch(self, z):
 		'''evaluate log pdf of z0 under the init prior
@@ -578,6 +623,29 @@ class LearningDynamicsModel(object):
 		assert logprobs.size(0) == x_t.size(0)
 		assert logprobs.size(1) == 1
 		return torch.sum(obs.log_prob(y_t))
+
+	def log_likelihood_compl_batch(self, y, x, z):
+		'''log likelihood summed over time batch across particles
+			p(y_t | y_1:t-1, x_1:t, z_1:t)
+		'''
+		z = z.transpose(1,0) # time x particles x dim
+		x = x.transpose(2, 1)
+		logits = torch.bmm(z, x) # time x particles x obs
+		logits = logits.transpose(1, 0) # particles x time x obs
+		obs = Bernoulli(self.sigmoid(logits))
+		return torch.sum(obs.log_prob(y), dim=(1, 2))
+
+
+		# print 'lh compl batch'
+		# embed()
+		# x_t = x[-1]
+		# z_t = z[:, -1] # particles x dimension
+		# y_t = y[-1][None, :]
+		# logits = torch.t(torch.matmul(x_t, torch.t(z_t))) # batch x dimension
+		# obs = Bernoulli(self.sigmoid(logits))
+		# logprobs = obs.log_prob(y_t)
+
+		# return torch.sum(logprobs, dim=-1)
 
 	def log_likelihood_t_batch(self, y, x, z):
 		'''

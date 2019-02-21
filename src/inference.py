@@ -53,10 +53,10 @@ class EM(object):
     def init_model(self,
                    init_prior_loc = 0.0,
                    init_prior_log_scale = 0.0,
-                   transition_log_scale = math.log(1e-1),
-                   beta = 5.,
-                   log_alpha = math.log(1e-2),
-                   log_sparsity=math.log(1e-3)):
+                   transition_log_scale = math.log(1e-3),
+                   beta = 4.0,
+                   log_alpha = math.log(1e-4),
+                   log_sparsity=math.log(1e-2)):
         init_prior = ([init_prior_loc]*self.dim, [init_prior_log_scale]*self.dim)
         transition_log_scale = [transition_log_scale]#*self.dim
         # log_alpha = [log_alpha] * self.dim
@@ -84,10 +84,10 @@ class EM(object):
             plt.plot(to_numpy(mean)[:,0], label='bias')
             plt.plot(to_numpy(mean)[:,1], label='x1')
             plt.plot(to_numpy(mean)[:,2], label='x2')
-            plt.plot(to_numpy(mean)[:,3], label='choice hist')
-            plt.plot(to_numpy(mean)[:,4], label='rw side hist')
-            plt.plot(to_numpy(mean)[:,5], label='sensory hist1')
-            plt.plot(to_numpy(mean)[:,6], label='senory hist2')
+            # plt.plot(to_numpy(mean)[:,3], label='choice hist')
+            # plt.plot(to_numpy(mean)[:,4], label='rw side hist')
+            # plt.plot(to_numpy(mean)[:,5], label='sensory hist1')
+            # plt.plot(to_numpy(mean)[:,6], label='senory hist2')
 
         
             plt.legend(loc = 'upper left')
@@ -121,7 +121,7 @@ class E_Step(object):
     def __init__(self, 
                  model,
                  T,
-                 num_particles=100):
+                 num_particles=25):
 
         self.model = model
         self.inference = None
@@ -168,7 +168,7 @@ class M_Step(object):
         #                    self.model.beta, 
         #                    self.model.log_alpha]
         self.optimizer = torch.optim.Adam(self.opt_params, lr = lr)
-        self.num_iters = 100
+        self.num_iters = 300
 
     def unpack_params(self, params):
         return params[0]
