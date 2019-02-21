@@ -5,7 +5,7 @@ import os
 import numpy as np
 import math
 import matplotlib
-# matplotlib.use('Agg')
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from IPython import display, embed
 import torch
@@ -15,14 +15,10 @@ from torch.autograd import Variable, grad
 from torch.nn import Linear, Module, MSELoss
 from torch.optim import SGD, Adam
 from torch.distributions import Normal, Bernoulli, MultivariateNormal
-import models
-from models import LDS, LogReg_LDS, LinearRegression
+
 import inference
-from inference import EM, Map, MeanFieldVI, StructuredVITriDiagonal
-import smc
-from smc import IS, SMC
-import vsmc
-from vsmc import VSMC
+from inference import EM
+
 import psutil
 import learning_dynamics
 from learning_dynamics import LearningDynamicsModel

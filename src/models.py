@@ -9,7 +9,7 @@ import os
 import numpy as np
 import math
 import matplotlib
-# matplotlib.use('Agg')
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from IPython import display, embed
 import torch

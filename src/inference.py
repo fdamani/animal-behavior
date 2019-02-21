@@ -121,7 +121,7 @@ class E_Step(object):
     def __init__(self, 
                  model,
                  T,
-                 num_particles=25):
+                 num_particles=100):
 
         self.model = model
         self.inference = None
@@ -150,6 +150,7 @@ class E_Step(object):
         log_weights = self.inference.weights[-1]
         weights = torch.exp(log_weights)
         particles = self.inference.particles_list[-1]
+
         return particles, weights, mean, scale, marginal_ll
 
 class M_Step(object):

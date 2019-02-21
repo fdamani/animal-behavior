@@ -5,7 +5,7 @@ import os
 import numpy as np
 import math
 import matplotlib
-# matplotlib.use('Agg')
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from IPython import display, embed
 import torch
@@ -18,11 +18,8 @@ from torch.distributions import Normal, Bernoulli, MultivariateNormal
 import models
 from models import LDS, LogReg_LDS, LinearRegression
 import inference
-from inference import EM, Map, MeanFieldVI, StructuredVITriDiagonal
-import smc
-from smc import IS, SMC
-import vsmc
-from vsmc import VSMC
+from inference import EM
+
 import psutil
 import learning_dynamics
 from learning_dynamics import LearningDynamicsModel
@@ -39,8 +36,7 @@ dtype = torch.float32
 
 
 def read_and_process(num_obs):
-
-	f = '../data/LearningData_W066_minmaxnorm.txt'
+	f = '../../../../tigress/fdamani/neuro_data/data/clean/LearningData_W066_minmaxnorm.txt'
 	raw_data = np.loadtxt(f, skiprows=1)
 	header = open(f).readline()[:-1].split(",")
 	raw_data = raw_data[11026:]
