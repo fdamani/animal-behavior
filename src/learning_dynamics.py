@@ -33,20 +33,22 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 class LearningDynamicsModel(object):
 	def __init__(self,
 				 init_prior=(0.0, 1.0),
-				 transition_scale=0.01,
-				 beta=.99, 
+				 transition_log_scale=math.log(0.01),
+				 beta=4., 
 				 log_alpha= -2.,
-				 dim=3):
+				 dim=3, log_sparsity=math.log(1e-3)):
 		# initialize parameters
+
 		grad_model_params=False
 		self.init_latent_loc = torch.tensor([init_prior[0]], 
 			requires_grad=grad_model_params, device=device)
 		self.init_latent_log_scale = torch.tensor([init_prior[1]], 
 			requires_grad=grad_model_params, device=device)
-		self.transition_log_scale = torch.tensor([transition_scale], 
-			requires_grad=False, device=device)
+		self.transition_log_scale = torch.tensor([transition_log_scale], 
+			requires_grad=True, device=device)
 		self.beta = torch.tensor([beta], requires_grad=True, device=device)
 		self.log_alpha = torch.tensor([log_alpha], requires_grad=True,device=device)
+		self.log_sparsity = torch.tensor([log_sparsity], requires_grad=False, device=device)
 		self.sigmoid = nn.Sigmoid()
 
 	def sample(self, T, num_obs_samples=10, dim=3):
@@ -83,7 +85,7 @@ class LearningDynamicsModel(object):
 		y, x = data[0], data[1]
 		return y, x
 
-	def log_joint(self, y, x, z):
+	def log_joint_notvec(self, y, x, z):
 		'''
 		input: x (observations T x D)
 		input: latent_mean
@@ -100,13 +102,12 @@ class LearningDynamicsModel(object):
 		for i in range(1, T):
 			logprob += self.log_prior_t(z[0:i+1], y[0:i+1], x[0:i+1])
 			logprob += self.log_likelihood_t(y[0:i+1], x[0:i+1], z[0:i+1])
-		embed()
 
 		return logprob
 
 #####################################################################################################
 ## vectorized functions ##
-	def log_joint_vec(self, y, x, z):
+	def log_joint(self, y, x, z):
 		'''
 		input: x (observations T x D)
 		input: latent_mean
@@ -126,21 +127,7 @@ class LearningDynamicsModel(object):
 		'''
 		logits = torch.sum(x * z[:, None, :], dim=2)
 		obs = Bernoulli(logits=logits)
-		#return obs.log_prob(y)
 		return torch.sum(obs.log_prob(y))
-
-		'''
-		x_t = x[-1]
-		z_t = z[-1][None, :]
-		y_t = y[-1][:, None]
-		logits = torch.matmul(x_t, torch.t(z_t))
-		#logits = torch.dot(x_t, z_t)
-		obs = Bernoulli(self.sigmoid(logits))
-		logprobs = obs.log_prob(y_t)
-		assert logprobs.size(0) == x_t.size(0)
-		assert logprobs.size(1) == 1
-		return torch.sum(obs.log_prob(y_t))
-		'''
 
 	def log_prior_vec(self, z, y, x):
 		'''
@@ -152,12 +139,18 @@ class LearningDynamicsModel(object):
 
 		# properly vectorized
 		grad_rat_obj = self.grad_rat_obj_score_vec(y, x, z)[0:-1]
+		# l2 = self.sigmoid(self.beta) * z_prev
+		learning = torch.exp(self.log_alpha) * grad_rat_obj
+		# l1 = torch.sign(z_prev) * torch.exp(self.log_sparsity)
 
-		mean = self.sigmoid(self.beta) * z_prev + torch.exp(self.log_alpha) * grad_rat_obj
+		penalty = self.sigmoid(self.beta)
+		regularization = penalty * z_prev + (1.0 - penalty) * -torch.sign(z_prev)
+		# sparsity = self.compute_sparsity_vec(z_prev)
+		mean = learning + regularization
+		# mean = l2 + learning - l1
 		scale = torch.exp(self.transition_log_scale)
 		prior = Normal(mean, scale)
 		return torch.sum(prior.log_prob(z_curr))
-
 
 	def grad_rat_obj_score_vec(self, y, x, z):
 		'''
@@ -168,7 +161,6 @@ class LearningDynamicsModel(object):
 
 
 		'''
-		print 'grad_rat_obj_score_vec'
 		prob_y_1_given_x_z = self.rat_policy_vec(x, z) # T x obs
 		prob_y_0_given_x_z = 1.0 - prob_y_1_given_x_z
 
@@ -252,11 +244,6 @@ class LearningDynamicsModel(object):
 		obs = Bernoulli(self.sigmoid(logits))
 		logprobs = obs.log_prob(y_t)
 		return logprobs
-		# assert logprobs.size(0) == x_t.size(0)
-		# assert logprobs.size(1) == 1
-		# return torch.sum(obs.log_prob(y_t))
-
-
 
 #####################################################################################################
 
@@ -274,12 +261,6 @@ class LearningDynamicsModel(object):
 		assert logprobs.size(0) == x_t.size(0)
 		assert logprobs.size(1) == 1
 		return torch.sum(obs.log_prob(y_t))
-
-
-
-
-
-
 
 	def complete_data_log_likelihood(self, y, x, particles, weights):
 		'''
@@ -322,8 +303,17 @@ class LearningDynamicsModel(object):
 		x_prev = x[-2]#[None]
 
 		grad_rat_obj = self.grad_rat_obj_score(y_prev, x_prev, z_prev[-1][None])
+		
+		# l2 = self.sigmoid(self.beta) * z_prev[-1]
+		learning = torch.exp(self.log_alpha) * grad_rat_obj
+		# l1 = torch.sign(z_prev[-1]) * torch.exp(self.log_sparsity)
+		#sparsity = self.compute_sparsity(z_prev[-1])
 
-		mean = self.sigmoid(self.beta) * z_prev[-1] + torch.exp(self.log_alpha) * grad_rat_obj
+		penalty = self.sigmoid(self.beta)
+		regularization = penalty * z_prev[-1] + (1.0 - penalty) * -torch.sign(z_prev[-1])
+		mean = learning + regularization
+
+		# mean = l2 + learning - l1
 		scale = torch.exp(self.transition_log_scale)
 
 		prior = Normal(mean, scale)
@@ -350,15 +340,51 @@ class LearningDynamicsModel(object):
 
 	def sample_prior(self, z_prev, y_prev=None, x_prev=None):
 		'''sample from p(z_t | z_t-1, y_t-1, x_t-1)
+
+		z_t+1 = beta * z_t + alpha * grad_rat_obj - sgn(z_t)*C
 		'''
 		# add learning component
 		grad_rat_obj = self.grad_rat_obj_score(y_prev, x_prev, z_prev)
-		# grad_rat_obj = self.grad_rat_policy(y_prev, x_prev, z_prev)
-		mean = self.sigmoid(self.beta) * z_prev + torch.exp(self.log_alpha) * grad_rat_obj
+		
+		penalty = self.sigmoid(self.beta)
+		regularization = penalty * z_prev + (1.0 - penalty) * -torch.sign(z_prev)
+		# l2 = self.sigmoid(self.beta) * z_prev
+		learning = torch.exp(self.log_alpha) * grad_rat_obj
+		# l1 = torch.sign(z_prev) * torch.exp(self.log_sparsity)
+		# sparsity = self.compute_sparsity(z_prev)
+		mean = learning + regularization
+		# mean = l2 + learning - l1
 		scale = torch.exp(self.transition_log_scale)
-
 		prior = Normal(mean, scale)
 		return prior.sample()
+
+	def soft_thresholding_sparsity(self, z_prev):
+
+		sparsity = torch.sign(z_prev) * torch.exp(self.log_sparsity)
+		abs_sparsity = torch.abs(sparsity)
+		abs_z_prev = torch.abs(z_prev)
+
+		conc = torch.stack([abs_sparsity, abs_z_prev]).squeeze() # 2 x dim
+		# vector of arg mins sparsity vs z_prev
+		argmins = torch.argmin(conc, dim=0) # 
+		conc = torch.stack([sparsity, z_prev]).squeeze()
+		elements = torch.diag(conc[argmins])
+		return elements
+
+	def soft_thresholding_sparsity_vec(self, z_prev):
+		sparse_concat = []
+		for i in range(z_prev.size(0)):
+			sparsity = torch.sign(z_prev[i]) * torch.exp(self.log_sparsity)
+			abs_sparsity = torch.abs(sparsity)
+			abs_z_prev = torch.abs(z_prev[i])
+
+			conc = torch.stack([abs_sparsity, abs_z_prev]).squeeze() # 2 x dim
+			# vector of arg mins sparsity vs z_prev
+			argmins = torch.argmin(conc, dim=0) # 
+			conc = torch.stack([sparsity, z_prev[i]]).squeeze()
+			elements = torch.diag(conc[argmins])
+			sparse_concat.append(elements[None])
+		return torch.cat(sparse_concat, dim=0)
 
 	def log_init_prior(self, z):
 		'''evaluate log pdf of z0 under the init prior

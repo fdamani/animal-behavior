@@ -41,32 +41,27 @@ class VSMC(object):
 	'''
 	def __init__(self,
 				 model,
-				 variational_params,
+				 proposal_params,
 				 num_particles=100,
-				 init_prior=(0.0,0.1),
-				 transition_scale=0.1,
 				 T=50):
 		# declare smc proposal params as differentiable params
 		# declare variational params and pass into SMCOpt as requires_grad=True
 		#self.variational_params = variational_params
 		self.num_particles = num_particles
-		self.init_prior = init_prior
-		self.transition_scale = transition_scale
+
 		self.T = T
 		self.smc = SMCOpt(model,
-					      variational_params=variational_params,
+					      proposal_params=proposal_params,
 						  num_particles=self.num_particles,
-						  init_prior=self.init_prior,
-						  transition_scale=self.transition_scale,
 						  T=self.T)
 		self.model = model
 
-	def forward(self, x):
+	def forward(self, data):
 		'''
 			useful for analytic kl  kl = torch.distributions.kl.kl_divergence(z_dist, self.prior).sum(-1)
 		'''
 
-		return self.smc.particle_filter(x)
+		return self.smc.particle_filter(data)
 		#self.smc.particle_filter(x)
 		#log_marginal_ll = self.smc.compute_log_marginal_likelihood()
 		#return -log_marginal_ll

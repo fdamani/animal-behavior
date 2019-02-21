@@ -272,35 +272,29 @@ class SMCOpt(object):
 	transition and obs_scale set to 0.1
 	'''
 	def __init__(self, 
-		         model,
-		         variational_params,
+				 model,
+				 proposal_params,
 				 num_particles=100,
 				 T=50):
 		isLearned=False
+		self.q_init_latent_loc = proposal_params[0]
+		self.q_init_latent_log_scale = proposal_params[1]
+		self.q_transition_log_scale = proposal_params[2]
 
-		self.q_init_latent_loc = variational_params[0]
-		self.q_init_latent_log_scale = variational_params[1]
-		self.q_transition_log_scale = variational_params[2]
+		# self.q_init_latent_loc = torch.tensor([proposal_params[0]], 
+	 #        requires_grad=False, device=device)
+	 #    self.q_init_latent_log_scale = torch.tensor([proposal_params[1]], 
+	 #        requires_grad=False, device=device)
+	 #    self.q_transition_log_scale = torch.tensor([proposal_params[2]], 
+	 #        requires_grad=False, device=device)
+
+
 		self.dim = self.q_init_latent_loc.size(1)
 		self.model = model
 		
-		'''
-		self.q_init_latent_loc = torch.tensor([init_prior[0]], 
-			requires_grad=isLearned, device=device)
-		self.q_init_latent_log_scale = torch.tensor([math.log(init_prior[1])], 
-			requires_grad=isLearned, device=device)
-		self.q_transition_log_scale = torch.tensor([math.log(transition_scale)], 
-			requires_grad=isLearned, device=device)
-		'''
 		self.num_particles = num_particles
 		self.resampling_criteria = num_particles / 2.0
 		self.T = T
-		#self.weights = []
-		#self.weights = torch.ones(self.num_particles, device=device)
-		#self.all_weights = []
-		#self.particles = torch.zeros((self.num_particles, self.T))
-		#self.particles_list = [torch.zeros((self.num_particles, self.T))]
-		#self.inter_marginal = torch.zeros(self.T)
 
 		self.init_params()
 	
@@ -439,6 +433,9 @@ class SMCOpt(object):
 		var = self.compute_scale(torch.exp(self.weights[-1]), self.particles_list[-1])
 		return exp_value, var
 
+	def forward(self, data):
+		return self.particle_filter(data)
+
 	def particle_filter(self, data):
 		'''
 			# time-step t=0: standard IS
@@ -487,7 +484,7 @@ class SMCOpt(object):
 			# sample z
 			samples = torch.cat(self.q_sample(y[0:t+1], x[0:t+1], self.particles_list[-1][0:t]))
 			# samples = torch.cat(self.q_sample(y[0:t+1], x[0:t+1], self.particles_list[-1][:, 0:t]))
-
+			
 			# append to particle trajectory
 			self.particles_list[-1][t] = self.particles_list[-1][t] + samples
 			#self.particles_list[-1][:, t] = self.particles_list[-1][:, t] + samples.flatten()
@@ -497,8 +494,8 @@ class SMCOpt(object):
 
 			self.weights.append(self.normalize_log_weights(log_weight_t))
 
-			print t
-
+			if t % 10 == 0:
+				print t
 		return torch.sum(torch.cat(log_marginal_ll))
 	
 	def compute_inter_log_marginal_likelihood(self, log_wx):
