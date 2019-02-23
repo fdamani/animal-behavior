@@ -330,9 +330,6 @@ class SMCOpt(object):
 
 			self.weights.append(self.normalize_log_weights(log_weight_t))
 
-			if t % 10 == 0:
-				print t, print_memory()
-
 		marginal_ll = torch.sum(torch.cat(log_marginal_ll))
 
 		return marginal_ll

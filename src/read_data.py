@@ -35,8 +35,7 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 dtype = torch.float32
 
 
-def read_and_process(num_obs):
-	f = '../../../../tigress/fdamani/neuro_data/data/clean/LearningData_W066_minmaxnorm.txt'
+def read_and_process(num_obs, f):
 	raw_data = np.loadtxt(f, skiprows=1)
 	header = open(f).readline()[:-1].split(",")
 	raw_data = raw_data[11026:]

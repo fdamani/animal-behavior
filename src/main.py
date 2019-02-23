@@ -69,16 +69,27 @@ if __name__ == '__main__':
         # plt.show()
         # model params
     else:
-        x, y, rw = read_and_process(num_obs=25)
+        num_obs = 200
+
+        f = '../../../../tigress/fdamani/neuro_data/data/clean/LearningData_W066_minmaxnorm.txt'
+        rat = f.split('/')[-1].split('.txt')[0]
+        x, y, rw = read_and_process(num_obs, f)
         #x = torch.tensor(x, device=device)
         x = torch.tensor(x, dtype=dtype, device=device)
         y = torch.tensor(y, dtype=dtype, device=device)
         rw = torch.tensor(rw, dtype=dtype, device=device)
-    #plt.plot(to_numpy(z_true))
-    #plt.show()
-    #x = x[:, :, 0:3]
+    
+    file_path = '../../../../tigress/fdamani/neuro_output/'
+    savedir = file_path
+    import datetime
+
+    savedir += str(datetime.datetime.now())
+    savedir += '__obs'+str(num_obs)
+    savedir += '__'+rat
+    os.mkdir(savedir)
+
     data = [y, x]
-    sx = EM(data)
+    sx = EM(data, savedir)
     sx.optimize()
 
   

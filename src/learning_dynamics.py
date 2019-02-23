@@ -37,7 +37,7 @@ class LearningDynamicsModel(object):
 				 transition_log_scale=math.log(0.01),
 				 beta=4., 
 				 log_alpha= -2.,
-				 dim=3, log_sparsity=math.log(1e-3)):
+				 dim=3):
 		# initialize parameters
 
 		grad_model_params=False
@@ -49,7 +49,7 @@ class LearningDynamicsModel(object):
 			requires_grad=True, device=device)
 		self.beta = torch.tensor([beta], requires_grad=True, device=device)
 		self.log_alpha = torch.tensor([log_alpha], requires_grad=True,device=device)
-		self.log_sparsity = torch.tensor([log_sparsity], requires_grad=False, device=device)
+		# self.log_sparsity = torch.tensor([log_sparsity], requires_grad=False, device=device)
 		self.sigmoid = nn.Sigmoid()
 
 	def sample(self, T, num_obs_samples=10, dim=3):
@@ -563,40 +563,11 @@ class LearningDynamicsModel(object):
 		prior = Normal(mean, scale)
 		return prior.sample()
 
-	def soft_thresholding_sparsity(self, z_prev):
-
-		sparsity = torch.sign(z_prev) * torch.exp(self.log_sparsity)
-		abs_sparsity = torch.abs(sparsity)
-		abs_z_prev = torch.abs(z_prev)
-
-		conc = torch.stack([abs_sparsity, abs_z_prev]).squeeze() # 2 x dim
-		# vector of arg mins sparsity vs z_prev
-		argmins = torch.argmin(conc, dim=0) # 
-		conc = torch.stack([sparsity, z_prev]).squeeze()
-		elements = torch.diag(conc[argmins])
-		return elements
-
-	def soft_thresholding_sparsity_vec(self, z_prev):
-		sparse_concat = []
-		for i in range(z_prev.size(0)):
-			sparsity = torch.sign(z_prev[i]) * torch.exp(self.log_sparsity)
-			abs_sparsity = torch.abs(sparsity)
-			abs_z_prev = torch.abs(z_prev[i])
-
-			conc = torch.stack([abs_sparsity, abs_z_prev]).squeeze() # 2 x dim
-			# vector of arg mins sparsity vs z_prev
-			argmins = torch.argmin(conc, dim=0) # 
-			conc = torch.stack([sparsity, z_prev[i]]).squeeze()
-			elements = torch.diag(conc[argmins])
-			sparse_concat.append(elements[None])
-		return torch.cat(sparse_concat, dim=0)
-
 	def log_init_prior(self, z):
 		'''evaluate log pdf of z0 under the init prior
 		'''
 		prior = Normal(self.init_latent_loc, torch.exp(self.init_latent_log_scale)) 
 		return torch.sum(prior.log_prob(z))
-
 
 	def log_init_prior_batch(self, z):
 		'''evaluate log pdf of z0 under the init prior

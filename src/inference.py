@@ -30,14 +30,69 @@ np.random.seed(7)
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 dtype = torch.float32
 
+global_params = []
+
+
 def to_numpy(tx):
     return tx.detach().cpu().numpy()
 
+def plot(mean, scale, savedir):
+
+    plt.cla()
+    # plot means
+    plt.plot(to_numpy(mean)[:,0], label='bias')
+    plt.plot(to_numpy(mean)[:,1], label='x1')
+    plt.plot(to_numpy(mean)[:,2], label='x2')
+    plt.plot(to_numpy(mean)[:,3], label='choice hist')
+    plt.plot(to_numpy(mean)[:,4], label='rw side hist')
+    plt.plot(to_numpy(mean)[:,5], label='sensory hist1')
+    plt.plot(to_numpy(mean)[:,6], label='senory hist2')
+
+    # plot scales
+    # plt.fill_between(np.arange(mean[:,0].size(0)), to_numpy(mean)[:,0] - to_numpy(scale)[:,0], 
+    #    to_numpy(mean)[:,0] + to_numpy(scale)[:,0], alpha=.5)
+
+    plt.legend(loc = 'upper left')
+    plt.savefig(savedir+'/latent_trajectory.png')
+
+def plot_loss(loss, savedir):
+    plt.cla()
+    plt.plot(np.array(loss).flatten())
+    plt.savefig(savedir+'/loss.png')
+
+def plot_model_params(model_params, savedir):
+    beta = model_params[:, 0].flatten()
+    alpha = model_params[:, 1].flatten()
+    transition_log_scale = model_params[:, 2].flatten()
+    plt.cla()
+    plt.plot(beta)
+    plt.savefig(savedir+'/beta.png')
+
+    plt.cla()
+    plt.plot(alpha)
+    plt.savefig(savedir+'/alpha.png')
+
+    plt.cla()
+    plt.plot(transition_log_scale)
+    plt.savefig(savedir+'/transition_log_scale.png')
+
+
+def save(loss_l, particles_l, weights_l, mean_l, scale_l, model_params, savedir):
+    np.save(savedir+'/loss_l.npy', loss_l)
+    np.save(savedir+'/particles_l.npy', particles_l)
+    np.save(savedir+'/weights_l.npy', weights_l)
+    np.save(savedir+'/mean_l.npy', mean_l)
+    np.save(savedir+'/scale_l.npy', scale_l)
+    np.save(savedir+'/model_params.npy', model_params)
+
 class EM(object):
-    def __init__(self, data):
+    def __init__(self, data, savedir):
+        self.savedir = savedir
         self.data = data
         self.dim = self.data[1].size(2)
         self.T = self.data[1].size(0)
+        self.em_iters = 1
+        global_params.append('em iters: ' + str(self.em_iters))
 
         self.model = None
         self.init_model()
@@ -53,10 +108,15 @@ class EM(object):
     def init_model(self,
                    init_prior_loc = 0.0,
                    init_prior_log_scale = 0.0,
-                   transition_log_scale = math.log(0.33),
-                   beta = 5.0,
-                   log_alpha = math.log(1e-3),
-                   log_sparsity=math.log(1e-2)):
+                   transition_log_scale = math.log(1e-1),
+                   beta = 4.0,
+                   log_alpha = math.log(1e-3)):
+        global_params.append('init_prior_loc: ' + str(init_prior_loc))
+        global_params.append('init_prior_log_scale: ' + str(init_prior_log_scale))
+        global_params.append('init_transition_log_scale: ' + str(transition_log_scale))
+        global_params.append('init_beta: ' + str(beta))
+        global_params.append('init_log_alpha: ' + str(log_alpha))
+
         init_prior = ([init_prior_loc]*self.dim, [init_prior_log_scale]*self.dim)
         transition_log_scale = [transition_log_scale]#*self.dim
         # log_alpha = [log_alpha] * self.dim
@@ -64,12 +124,9 @@ class EM(object):
                                            transition_log_scale=transition_log_scale, 
                                            beta=beta,
                                            log_alpha=log_alpha, 
-                                           dim=self.dim,
-                                           log_sparsity=log_sparsity)
+                                           dim=self.dim)
 
     def update_model(self, opt_params):
-        # self.model.log_sparsity = opt_params[0]
-        # self.model.transition_log_scale = opt_params[0]
         self.model.beta = opt_params[0]
         self.model.log_alpha = opt_params[1]
         self.model.transition_log_scale = opt_params[2]
@@ -77,43 +134,38 @@ class EM(object):
     def optimize(self):
         self.init_model()
         print 'optimizing...'
-        loss = []
-        for i in range(100):
+        loss_l, particles_l, weights_l, mean_l, scale_l, model_params = [], [], [], [], [], []
+        for i in range(self.em_iters):
+            # e-step
             particles, weights, mean, scale, marginal_ll = self.e_step.forward(self.data, self.model)
-            plt.cla()
-            plt.plot(to_numpy(mean)[:,0], label='bias')
-            plt.plot(to_numpy(mean)[:,1], label='x1')
-            plt.plot(to_numpy(mean)[:,2], label='x2')
-            # plt.plot(to_numpy(mean)[:,3], label='choice hist')
-            # plt.plot(to_numpy(mean)[:,4], label='rw side hist')
-            # plt.plot(to_numpy(mean)[:,5], label='sensory hist1')
-            # plt.plot(to_numpy(mean)[:,6], label='senory hist2')
 
-        
-            plt.legend(loc = 'upper left')
-            #plt.draw()
-            plt.savefig('./fig.png')
-            #plt.pause(1.0/60.0)
-            # self.init_model(init_prior_loc = 0.0,
-            #        init_prior_log_scale = 0.0,
-            #        transition_log_scale = math.log(1e-2),
-            #        beta = 5.,
-            #        log_alpha = math.log(1e-2),
-            #        log_sparsity=math.log(1e-2))
-            # self.m_step = M_Step(self.model)
+            # plot
+            plot(mean, scale, self.savedir)
 
+            # m-step
             opt_params, expected_likelihood = self.m_step.optimize(self.data, particles, weights)
-            # print 'iter: ', i, \
-            #       'sparsity: ', np.exp(opt_params[0].item()), \
-                  #'loss: ', expected_likelihood.item(), \
-                  # 'sparsity: ', np.exp(opt_params[0].item()), \
-                  #'alpha: ', np.exp(opt_params[1].item())
-                  #'beta: ', opt_params[1].item()
-                  # np.exp(self.opt_params[0].detach().cpu().numpy()), self.opt_params[1].detach().cpu().numpy(), \
-                #np.exp(self.opt_params[2].detach().cpu().numpy())
+
+            # update model parameters
             self.update_model(opt_params)
-            loss.append(expected_likelihood)
-        embed()
+
+            # append new params to lists
+            loss_l.append(expected_likelihood.detach().cpu().numpy())
+            model_params.append([sx.detach().cpu().numpy() for sx in opt_params])
+            particles_l.append(particles.detach().cpu().numpy()), weights_l.append(weights.detach().cpu().numpy())
+            mean_l.append(mean.detach().cpu().numpy()), scale_l.append(scale.detach().cpu().numpy())
+
+            # print and plot
+            print 'EM iter: ', i, '\n'
+            plot(mean, scale, self.savedir)
+            plot_loss(loss_l, self.savedir)
+            plot_model_params(np.array(model_params), self.savedir)
+
+        # save
+        save(np.array(loss_l), np.array(particles_l), np.array(weights_l), np.array(mean_l), 
+            np.array(scale_l), model_params, self.savedir)
+
+        outfile = open(self.savedir+'/params.txt', 'wb')
+        outfile.write("\n".join(global_params))
 
 class E_Step(object):
     '''
@@ -122,13 +174,14 @@ class E_Step(object):
     def __init__(self, 
                  model,
                  T,
-                 num_particles=50):
+                 num_particles=100):
 
         self.model = model
         self.inference = None
         self.T = T
         self.num_particles = num_particles
         self.init_smc()
+        global_params.append('num_particles: ' + str(num_particles))
 
     def init_smc(self):
         # set smc proposal params to model prior
@@ -157,19 +210,16 @@ class E_Step(object):
 class M_Step(object):
     def __init__(self, 
                  model,
-                 lr = 0.1):
+                 lr = 0.001):
         self.model = model
         self.opt_params = [self.model.beta, 
                            self.model.log_alpha, 
                            self.model.transition_log_scale]
-                           # self.model.log_sparsity, 
-                           # self.model.beta,
-                           # self.model.log_alpha]#, self.model.beta]
-        # self.opt_params = [self.model.transition_log_scale, 
-        #                    self.model.beta, 
-        #                    self.model.log_alpha]
+
         self.optimizer = torch.optim.Adam(self.opt_params, lr = lr)
-        self.num_iters = 500
+        self.num_iters = 1000
+        global_params.append('adam learning rate: ' + str(lr))
+        global_params.append('m step num iters: ', + str(self.num_iters))
 
     def unpack_params(self, params):
         return params[0]
@@ -184,16 +234,15 @@ class M_Step(object):
             self.optimizer.zero_grad()
             output = -self.forward(y, x, particles, weights)#, opt_params)
             output.backward(retain_graph=True)
-            print t, output.item(), \
-                     self.model.beta.item(), \
-                     torch.exp(self.model.log_alpha.detach()), \
-                     torch.exp(self.model.transition_log_scale.detach())
-                     # np.exp(self.model.log_sparsity.item()), \
-                     # np.exp(self.model.log_alpha.item())
-                #self.model.beta.item()
+            if t % 100 == 0:
+                print 'iter: ', t, \
+                      'loss: ', output.item(), \
+                      'sparsity: ', self.model.beta.detach().item(), \
+                      'alpha: ', self.model.log_alpha.detach().item(), \
+                      'scale: ', self.model.transition_log_scale.detach().item()
             self.optimizer.step()
             outputs.append(output)
-        print 'finished optimizing...', self.opt_params
+
         return self.opt_params, outputs[-1]
 
 class Map(object):
