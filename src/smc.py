@@ -330,10 +330,80 @@ class SMCOpt(object):
 
 			self.weights.append(self.normalize_log_weights(log_weight_t))
 
+			if t % 100 == 0:
+				print t, 'gpu usage: ', torch.cuda.memory_allocated(device) /1e9
+			if t == 600:
+				embed()
+
 		marginal_ll = torch.sum(torch.cat(log_marginal_ll))
 
 		return marginal_ll
-	
+
+	def particle_filter_mem_happy(self, data):
+		'''
+			# time-step t=0: standard IS
+				# sample z_0^i ~ q_0 for i = 1,...,N
+				# compute normalized importance weights w_0^i, for i = 1,...,N
+			# time-step t > 0
+				# sample ancestor indices a_t-1^i ~ Cat(w_t-1)
+				# update particles according to ancestor indices
+				# sample z_t^i ~ q_t(z_t | ... )
+				# append new z's to particle trajectories
+				# compute new weights p/q and normalize.
+
+
+				particles are T x particles x dim
+		'''
+		y, x = self.model.unpack_data(data)
+		self.init_params()
+		log_marginal_ll = []
+		#weights = []
+		
+		# importance sample init
+		t=0
+		init_log_weights = torch.zeros(self.num_particles, device=device)
+		init_samples = self.q_init_sample(self.num_particles)
+		self.particles_list[-1][0] = self.particles_list[-1][0] + init_samples
+		#self.particles_list[-1][:,0] = self.particles_list[-1][:,0] + init_samples.flatten()
+		init_log_wts = self.compute_incremental_weight(self.particles_list[-1][0:t+1], y[0:t+1], x[0:t+1])
+
+		#init_log_wts = self.compute_incremental_weight(self.particles_list[-1][:,0:t+1], y[0:t+1], x[0:t+1])
+
+		# add to log marginal likelihood
+		# normalize first
+		log_marginal_ll.append(self.compute_inter_log_marginal_likelihood(init_log_wts))
+		
+		# normalize weights and save
+		self.weights.append(self.normalize_log_weights(init_log_wts))
+
+		for t in range(1, self.T):
+			ancestor_inds = self.multinomial_resampling(self.weights[-1])
+			ancestors = self.new_particles_from_ancestors(ancestor_inds)
+			#del self.particles_list ## new line
+			#self.particles_list = []
+			self.particles_list.append(ancestors)
+			# sample z
+			samples = torch.cat(self.q_sample(x[0:t+1], self.particles_list[-1][0:t]))
+			# samples = torch.cat(self.q_sample(y[0:t+1], x[0:t+1], self.particles_list[-1][:, 0:t]))
+			
+			# append to particle trajectory
+			self.particles_list[-1][t] = self.particles_list[-1][t] + samples
+			#self.particles_list[-1][:, t] = self.particles_list[-1][:, t] + samples.flatten()
+		
+			log_weight_t = self.compute_incremental_weight(self.particles_list[-1][0:t+1], y[0:t+1], x[0:t+1])
+			log_marginal_ll.append(self.compute_inter_log_marginal_likelihood(log_weight_t))
+
+			self.weights.append(self.normalize_log_weights(log_weight_t))
+
+			if t % 100 == 0:
+				print t, 'gpu usage: ', torch.cuda.memory_allocated(device) /1e9
+			if t == 600:
+				embed()
+
+		marginal_ll = torch.sum(torch.cat(log_marginal_ll))
+
+		return marginal_ll
+
 	def compute_inter_log_marginal_likelihood(self, log_wx):
 		'''
 			log 1/n sum_i w_t^i

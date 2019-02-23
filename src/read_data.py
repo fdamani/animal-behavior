@@ -19,7 +19,7 @@ import models
 from models import LDS, LogReg_LDS, LinearRegression
 import inference
 from inference import EM
-
+import pandas as pd
 import psutil
 import learning_dynamics
 from learning_dynamics import LearningDynamicsModel
@@ -35,16 +35,25 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 dtype = torch.float32
 
 
-def read_and_process(num_obs, f):
-	raw_data = np.loadtxt(f, skiprows=1)
-	header = open(f).readline()[:-1].split(",")
-	raw_data = raw_data[11026:]
+def read_and_process(num_obs, f, savedir):
+	raw_data = pd.read_csv(f)
+	header = raw_data.columns
 
-	num_trials = 100
-	trials_per_session = np.bincount(raw_data[:,7].astype(int))[1:]
-	sessions = np.where(trials_per_session > num_trials)[0] + 1
-	data = raw_data[np.isin(raw_data[:, -1].astype(int), sessions)]
-	data = data[~np.isnan(data[:,3])]
+	# raw_data = np.loadtxt(f, skiprows=1, delimiter=',', usecols=(range(0,3)))
+	# header = open(f).readline()[:-1].split(",")
+	# limit to NoReward
+	raw_data = raw_data[raw_data['trainstg'] == 'NoReward']
+	# remove all NaNtr
+	data = raw_data[raw_data['nantr'] == 0].values
+	# ignore nantr and trainstg
+	data = data[:, 0:-2].astype(float)
+
+	# raw_data = raw_data[11026:]
+	# num_trials = 100
+	# trials_per_session = np.bincount(raw_data[:,7].astype(int))[1:]
+	# sessions = np.where(trials_per_session > num_trials)[0] + 1
+	# data = raw_data[np.isin(raw_data[:, -1].astype(int), sessions)]
+	# data = data[~np.isnan(data[:,3])]
 
 	data[np.where(data == 108.)], data[np.where(data == 114.)] = 0, 1
 
@@ -67,8 +76,9 @@ def read_and_process(num_obs, f):
 	# plot smoothed reward
 	rw_avg = np.convolve(rw, np.ones(500))/ 500.0
 	rw_avg = rw_avg[500:-500]
-	# plt.plot(rw_avg)
-	# plt.show()
+	plt.plot(rw_avg)
+	plt.savefig(savedir+'/smoothed_reward.png')
+	plt.cla()
 	true_side = data[:,3]
 
 	# create observations by binning over time

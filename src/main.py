@@ -26,6 +26,8 @@ import sim
 from sim import generateSim 
 import read_data
 from read_data import read_and_process
+import utils
+from utils import get_gpu_memory_map
 process = psutil.Process(os.getpid())
 
 # set random seed
@@ -47,6 +49,13 @@ if __name__ == '__main__':
     inference_type = inference_types[4]
 
     sim = False
+
+    file_path = '../../../../tigress/fdamani/neuro_output/'
+    savedir = file_path
+    import datetime
+    savedir += str(datetime.datetime.now())
+
+
     if sim:
         # T = 200 # 100
         T = 100
@@ -69,27 +78,27 @@ if __name__ == '__main__':
         # plt.show()
         # model params
     else:
-        num_obs = 200
+        num_obs = 10
+        #f = '/tigress/fdamani/neuro_data/data/clean/LearningData_W066_minmaxnorm.txt'
+        # data file
+        rat = 'W066.csv'
+        f = '/tigress/fdamani/neuro_data/data/raw/allrats_withmissing_limitedtrials/csv/'
+        f += rat
+        rat = f.split('/')[-1].split('.csv')[0]
+        
+        # add to dir name
+        savedir += '__obs'+str(num_obs)
+        savedir += '__'+rat
+        os.mkdir(savedir)
 
-        f = '../../../../tigress/fdamani/neuro_data/data/clean/LearningData_W066_minmaxnorm.txt'
-        rat = f.split('/')[-1].split('.txt')[0]
-        x, y, rw = read_and_process(num_obs, f)
-        #x = torch.tensor(x, device=device)
+        x, y, rw = read_and_process(num_obs, f, savedir)
         x = torch.tensor(x, dtype=dtype, device=device)
         y = torch.tensor(y, dtype=dtype, device=device)
         rw = torch.tensor(rw, dtype=dtype, device=device)
-    
-    file_path = '../../../../tigress/fdamani/neuro_output/'
-    savedir = file_path
-    import datetime
-
-    savedir += str(datetime.datetime.now())
-    savedir += '__obs'+str(num_obs)
-    savedir += '__'+rat
-    os.mkdir(savedir)
-
+    print 'gpu usage: ', torch.cuda.memory_allocated(device) /1e9
+    embed()
     data = [y, x]
-    sx = EM(data, savedir)
+    sx = EM(data, savedir, num_obs)
     sx.optimize()
 
   

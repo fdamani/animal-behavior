@@ -21,7 +21,8 @@ import learning_dynamics
 from learning_dynamics import LearningDynamicsModel
 import smc
 from smc import SMCOpt
-
+import utils
+from utils import get_gpu_memory_map
 process = psutil.Process(os.getpid())
 
 # set random seed
@@ -64,6 +65,7 @@ def plot_model_params(model_params, savedir):
     beta = model_params[:, 0].flatten()
     alpha = model_params[:, 1].flatten()
     transition_log_scale = model_params[:, 2].flatten()
+
     plt.cla()
     plt.plot(beta)
     plt.savefig(savedir+'/beta.png')
@@ -86,16 +88,26 @@ def save(loss_l, particles_l, weights_l, mean_l, scale_l, model_params, savedir)
     np.save(savedir+'/model_params.npy', model_params)
 
 class EM(object):
-    def __init__(self, data, savedir):
+    def __init__(self, data, savedir, num_obs):
         self.savedir = savedir
         self.data = data
         self.dim = self.data[1].size(2)
         self.T = self.data[1].size(0)
-        self.em_iters = 1
-        global_params.append('em iters: ' + str(self.em_iters))
-
+        self.em_iters = 200
+        self.num_obs = num_obs
         self.model = None
         self.init_model()
+
+        # save global params
+        global_params.append('num obs per bin: ' + str(self.num_obs))
+        global_params.append('em iters: ' + str(self.em_iters))
+        global_params.append('init_prior_loc: ' + str(self.model.init_latent_loc.detach().cpu().numpy()))
+        global_params.append('init_prior_log_scale: ' + str(self.model.init_latent_log_scale.detach().cpu().numpy()))
+        global_params.append('init_transition_log_scale: ' + str(self.model.transition_log_scale.detach().cpu().numpy()))
+        global_params.append('init_beta: ' + str(self.model.beta.detach().cpu().numpy()))
+        global_params.append('init_log_alpha: ' + str(self.model.log_alpha.detach().cpu().numpy()))
+    
+
         print 'initialized model...'
 
         self.e_step = E_Step(self.model,
@@ -109,13 +121,8 @@ class EM(object):
                    init_prior_loc = 0.0,
                    init_prior_log_scale = 0.0,
                    transition_log_scale = math.log(1e-1),
-                   beta = 4.0,
+                   beta = 5.0,
                    log_alpha = math.log(1e-3)):
-        global_params.append('init_prior_loc: ' + str(init_prior_loc))
-        global_params.append('init_prior_log_scale: ' + str(init_prior_log_scale))
-        global_params.append('init_transition_log_scale: ' + str(transition_log_scale))
-        global_params.append('init_beta: ' + str(beta))
-        global_params.append('init_log_alpha: ' + str(log_alpha))
 
         init_prior = ([init_prior_loc]*self.dim, [init_prior_log_scale]*self.dim)
         transition_log_scale = [transition_log_scale]#*self.dim
@@ -133,8 +140,11 @@ class EM(object):
 
     def optimize(self):
         self.init_model()
+        print 'gpu usage: ', torch.cuda.memory_allocated(device) /1e9
+
         print 'optimizing...'
         loss_l, particles_l, weights_l, mean_l, scale_l, model_params = [], [], [], [], [], []
+        outfile = open(self.savedir+'/params.txt', 'wb')
         for i in range(self.em_iters):
             # e-step
             particles, weights, mean, scale, marginal_ll = self.e_step.forward(self.data, self.model)
@@ -160,13 +170,14 @@ class EM(object):
             plot_loss(loss_l, self.savedir)
             plot_model_params(np.array(model_params), self.savedir)
 
-        # save
-        save(np.array(loss_l), np.array(particles_l), np.array(weights_l), np.array(mean_l), 
-            np.array(scale_l), model_params, self.savedir)
+            if i % 10 == 0:
+                # save
+                save(np.array(loss_l), np.array(particles_l), np.array(weights_l), np.array(mean_l), 
+                    np.array(scale_l), model_params, self.savedir)
 
-        outfile = open(self.savedir+'/params.txt', 'wb')
-        outfile.write("\n".join(global_params))
-
+            if i == 0:
+                outfile.write("\n".join(global_params))
+                outfile.close()
 class E_Step(object):
     '''
         posterior over latents
@@ -174,7 +185,7 @@ class E_Step(object):
     def __init__(self, 
                  model,
                  T,
-                 num_particles=100):
+                 num_particles=250):
 
         self.model = model
         self.inference = None
@@ -210,8 +221,10 @@ class E_Step(object):
 class M_Step(object):
     def __init__(self, 
                  model,
-                 lr = 0.001):
+                 lr = 1e-3):
         self.model = model
+        # self.opt_params = [self.model.transition_log_scale]
+        # self.opt_params = [self.model.beta, self.model.transition_log_scale]
         self.opt_params = [self.model.beta, 
                            self.model.log_alpha, 
                            self.model.transition_log_scale]
@@ -219,7 +232,7 @@ class M_Step(object):
         self.optimizer = torch.optim.Adam(self.opt_params, lr = lr)
         self.num_iters = 1000
         global_params.append('adam learning rate: ' + str(lr))
-        global_params.append('m step num iters: ', + str(self.num_iters))
+        global_params.append('m step num iters: ' + str(self.num_iters))
 
     def unpack_params(self, params):
         return params[0]
@@ -234,7 +247,7 @@ class M_Step(object):
             self.optimizer.zero_grad()
             output = -self.forward(y, x, particles, weights)#, opt_params)
             output.backward(retain_graph=True)
-            if t % 100 == 0:
+            if t % 250 == 0:
                 print 'iter: ', t, \
                       'loss: ', output.item(), \
                       'sparsity: ', self.model.beta.detach().item(), \

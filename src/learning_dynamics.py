@@ -19,7 +19,8 @@ from torch.autograd import Variable, grad
 from torch.nn import Linear, Module, MSELoss
 from torch.optim import SGD, Adam
 from torch.distributions import MultivariateNormal, Normal, Bernoulli
-
+import utils
+from utils import get_gpu_memory_map
 import psutil
 process = psutil.Process(os.getpid())
 
