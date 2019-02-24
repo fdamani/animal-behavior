@@ -78,7 +78,7 @@ if __name__ == '__main__':
         # plt.show()
         # model params
     else:
-        num_obs = 10
+        num_obs = 75
         #f = '/tigress/fdamani/neuro_data/data/clean/LearningData_W066_minmaxnorm.txt'
         # data file
         rat = 'W066.csv'
@@ -90,13 +90,17 @@ if __name__ == '__main__':
         savedir += '__obs'+str(num_obs)
         savedir += '__'+rat
         os.mkdir(savedir)
+        os.mkdir(savedir+'/data')
 
         x, y, rw = read_and_process(num_obs, f, savedir)
         x = torch.tensor(x, dtype=dtype, device=device)
         y = torch.tensor(y, dtype=dtype, device=device)
         rw = torch.tensor(rw, dtype=dtype, device=device)
+    
+    np.save(savedir+'/data/y.npy', y.detach().cpu().numpy())
+    np.save(savedir+'/data/x.npy', x.detach().cpu().numpy())
+    np.save(savedir+'/data/rw.npy', rw.detach().cpu().numpy())
     print 'gpu usage: ', torch.cuda.memory_allocated(device) /1e9
-    embed()
     data = [y, x]
     sx = EM(data, savedir, num_obs)
     sx.optimize()

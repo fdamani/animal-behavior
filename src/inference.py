@@ -93,7 +93,7 @@ class EM(object):
         self.data = data
         self.dim = self.data[1].size(2)
         self.T = self.data[1].size(0)
-        self.em_iters = 200
+        self.em_iters = 500
         self.num_obs = num_obs
         self.model = None
         self.init_model()
@@ -131,7 +131,7 @@ class EM(object):
                                            transition_log_scale=transition_log_scale, 
                                            beta=beta,
                                            log_alpha=log_alpha, 
-                                           dim=self.dim)
+                                           dim=self.dim, grad=False)
 
     def update_model(self, opt_params):
         self.model.beta = opt_params[0]
@@ -159,7 +159,7 @@ class EM(object):
             self.update_model(opt_params)
 
             # append new params to lists
-            loss_l.append(expected_likelihood.detach().cpu().numpy())
+            loss_l.append(expected_likelihood)
             model_params.append([sx.detach().cpu().numpy() for sx in opt_params])
             particles_l.append(particles.detach().cpu().numpy()), weights_l.append(weights.detach().cpu().numpy())
             mean_l.append(mean.detach().cpu().numpy()), scale_l.append(scale.detach().cpu().numpy())
@@ -212,16 +212,16 @@ class E_Step(object):
         # e-step
         marginal_ll = self.inference.forward(data)
         mean, scale = self.inference.estimate(data)
-        log_weights = self.inference.weights[-1]
+        log_weights = self.inference.weights_t
         weights = torch.exp(log_weights)
-        particles = self.inference.particles_list[-1]
+        particles = self.inference.particles_t
 
         return particles, weights, mean, scale, marginal_ll
 
 class M_Step(object):
     def __init__(self, 
                  model,
-                 lr = 1e-3):
+                 lr = 1e-5):
         self.model = model
         # self.opt_params = [self.model.transition_log_scale]
         # self.opt_params = [self.model.beta, self.model.transition_log_scale]
@@ -230,9 +230,10 @@ class M_Step(object):
                            self.model.transition_log_scale]
 
         self.optimizer = torch.optim.Adam(self.opt_params, lr = lr)
-        self.num_iters = 1000
+        self.num_iters = 4000
         global_params.append('adam learning rate: ' + str(lr))
         global_params.append('m step num iters: ' + str(self.num_iters))
+
 
     def unpack_params(self, params):
         return params[0]
@@ -240,23 +241,40 @@ class M_Step(object):
         return self.model.complete_data_log_likelihood(y, x, particles, weights)
 
     def optimize(self, data, particles, weights):
+        self.model.init_grad_vbles()
         y, x = self.model.unpack_data(data)
         # m-step
         outputs = []
         for t in range(self.num_iters):
-            self.optimizer.zero_grad()
+            # forward pass
+            embed()
             output = -self.forward(y, x, particles, weights)#, opt_params)
-            output.backward(retain_graph=True)
-            if t % 250 == 0:
+            # compute loss
+            outputs.append(output.item())
+            # zero all of the gradients
+            self.optimizer.zero_grad()
+            # backward pass: compute gradient of loss w.r.t. to model parameters
+            output.backward()
+            # call step function
+            self.optimizer.step()
+            # if t == 0:
+            #     output.backward(retain_graph=True)
+            # else:
+            #     output.backward()
+            if t % 500 == 0:
                 print 'iter: ', t, \
                       'loss: ', output.item(), \
-                      'sparsity: ', self.model.beta.detach().item(), \
-                      'alpha: ', self.model.log_alpha.detach().item(), \
-                      'scale: ', self.model.transition_log_scale.detach().item()
-            self.optimizer.step()
-            outputs.append(output)
+                      'sparsity: ', self.model.beta.item(), \
+                      'alpha: ', self.model.log_alpha.item(), \
+                      'scale: ', self.model.transition_log_scale.item()
+            # mem = torch.cuda.memory_allocated(device) /1e9
 
+            # if float(mem) > 13:
+            #     embed()
+
+        self.model.init_no_grad_vbles()
         return self.opt_params, outputs[-1]
+
 
 class Map(object):
     def __init__(self, model):

@@ -38,7 +38,7 @@ class LearningDynamicsModel(object):
 				 transition_log_scale=math.log(0.01),
 				 beta=4., 
 				 log_alpha= -2.,
-				 dim=3):
+				 dim=3, grad=False):
 		# initialize parameters
 
 		grad_model_params=False
@@ -47,11 +47,20 @@ class LearningDynamicsModel(object):
 		self.init_latent_log_scale = torch.tensor([init_prior[1]], 
 			requires_grad=grad_model_params, device=device)
 		self.transition_log_scale = torch.tensor([transition_log_scale], 
-			requires_grad=True, device=device)
-		self.beta = torch.tensor([beta], requires_grad=True, device=device)
-		self.log_alpha = torch.tensor([log_alpha], requires_grad=True,device=device)
-		# self.log_sparsity = torch.tensor([log_sparsity], requires_grad=False, device=device)
+			requires_grad=grad, device=device)
+		self.beta = torch.tensor([beta], requires_grad=grad, device=device)
+		self.log_alpha = torch.tensor([log_alpha], requires_grad=grad,device=device)
 		self.sigmoid = nn.Sigmoid()
+
+	def init_grad_vbles(self):
+		self.transition_log_scale.requires_grad_(True)
+		self.beta.requires_grad_(True)
+		self.log_alpha.requires_grad_(True)
+
+	def init_no_grad_vbles(self):
+		self.transition_log_scale.requires_grad_(False)
+		self.beta.requires_grad_(False)
+		self.log_alpha.requires_grad_(False)
 
 	def sample(self, T, num_obs_samples=10, dim=3):
 		'''
@@ -138,6 +147,17 @@ class LearningDynamicsModel(object):
 		# add elementwise
 		logprob += self.log_prior_batch_compl(z, y, x)
 		logprob += self.log_likelihood_compl_batch(y, x, z)
+		return logprob
+
+
+	def log_joint_batch_bootstrap(self, y1, x1, z, z1):
+		''' vectorize over particles and time.
+		input: x (observations T x D)
+		input: latent_mean
+		return logpdf under the model parameters
+		'''
+		T = y1.size(0)
+		logprob = self.log_prior_batch_compl_bootstrap(z, y1, x1, z1)
 		return logprob
 
 	def log_likelihood_vec(self, y, x, z):
@@ -377,6 +397,25 @@ class LearningDynamicsModel(object):
 		assert logprobs.size(1) == 1
 		return torch.sum(obs.log_prob(y_t))
 
+	def complete_data_log_likelihood_bootstrap(self, y1, x1, z, z1, weights):
+		'''vecotrized computation over particles and time.
+			E_q[log p(y, x, z)]
+			q is approximate posterior
+			we want gradients with respect to model parameters theta (not does not depend on q)
+			compute monte carlo approximation.
+
+
+			**need to vectorize this so its operations on particles x time x num observations x dimension
+			**start with removing time for loop
+		'''
+		num_particles = weights.size(0)
+		expected_value = 0
+		z = z.transpose(1, 0)
+		log_prob_vec = self.log_joint_batch_bootstrap(y1, x1, z, z1)
+
+		expected_value = torch.dot(log_prob_vec, weights)
+		return expected_value
+
 	def complete_data_log_likelihood(self, y, x, particles, weights):
 		'''vecotrized computation over particles and time.
 			E_q[log p(y, x, z)]
@@ -472,6 +511,27 @@ class LearningDynamicsModel(object):
 		scale = torch.exp(self.transition_log_scale)
 		prior = Normal(mean, scale)
 		return torch.sum(prior.log_prob(z_t), dim=-1)
+
+
+	def log_prior_batch_compl_bootstrap(self, z, y1, x1, z1):
+		'''
+			input: z_1:t
+			parameterize p(z_t | z_t-1, theta)
+		'''
+		z = z.transpose(1,0)
+		grad_rat_obj = self.grad_rat_obj_score_batch(y1, x1, z1)
+		learning = torch.exp(self.log_alpha) * grad_rat_obj
+
+		penalty = self.sigmoid(self.beta)
+		#regularization = penalty * z_prev[:, -1] + (1.0 - penalty) * -torch.sign(z_prev[:, -1])
+		regularization = (penalty * z1 + (1.0 - penalty) * -torch.sign(z1))
+		mean = learning + regularization
+		scale = torch.exp(self.transition_log_scale)
+		prior = Normal(mean, scale)
+		log_prob = prior.log_prob(z)
+		# sum over dimension
+		log_prob = torch.sum(log_prob, dim=(0, 2)) # sum over time and dimension
+		return log_prob
 
 	def log_prior_batch_compl(self, z, y, x):
 		'''
