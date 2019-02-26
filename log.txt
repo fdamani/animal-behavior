@@ -1,5 +1,140 @@
+2.26.19
+	- run simulation locally make sure we can accurately recover sparsity params.
+	- run on full dataset (with decent size learning rate) 
+	- run with multiple learning rates.
+
+	- use synthetic data to make sure we can properly recover these new parameters.
+
+
+2.25.19
+- run bootstrap estimator for each file. X
+- plots
+	- model param estimation: boxplots for each model param across all rats using bootstrap data (wait for run to finish)
+	- plot with smoothed reward over time for all rats
+		- we have a plot for one. but we might want a few side-by-side panels.
+	- one latent trajectory plot (with uncertainty). almost done. different colors for different subplots.
+	- PPC: generate y's from data. generate 100 and plot smoothed reward over time. 
+
+
+- finish latent trajectory plot. X
+- bootstrap plot. X
+- add these two and smoothed reward plot. X
+- other plots
+	- ppc
+	- 
+
+
+
+2.23.19
+	agenda:
+		- process new rat datasets. X
+		- fixed memory leak in inference and estimation. X
+		- running experiments on 2 rats (75 trial bins) and 1 rat (10 trial bin)
+		- implement bootstrap X
+			- all we need to do is write a new log prior batch compl func
+				- will not be the same. if we sample a z_t this means we want to 
+				compute log prob of z_t conditioned on z_t-1 but this says NOTHING
+				about wanting to compute log prob of z_t-1. there is no notion of ordering.
+				- what we want is just a matrix of col1=z_t and col2=z_t-1. go find me the log probs.
+				- all functions should work for for loop?
+		- run on two new datasets and see what the numbers come out to. X
+		- implement bootstrap using data from output. X
+		- run again on another rat with lower learning rate. X
+
+		- make figures
+			- make bootstrap figures
+				- boxplots for each model parameter for each rat.
+			- plot latent trajectory for one rat.
+			- marginal likelihood as we add additional structure to model.
+				- 1 alpha vs multiple
+				- alpha versus no alpha
+				- sparsity versus no sparsity.
+
+2.22.19
+
+	current experiments:
+		- show we can get things to converge nicely (loss, params)
+			- test different learning rates (1e-2 to 1e-5)
+				ANSWER: 1e-4 is the best. although some model params
+					did not finish converging so will need to run for
+					longer.
+			- based on learning rate, try different number of particles
+				50, 100, 500, 1000 
+				ANSWER
+					- 1k gave memory error (do we need to address this?)
+
+		- running marginal likelihood on just random walk (no sparsity, no learning)
+		- cant run experiment of random walk + sparsity w/o learning due to cuda memory
+
+
+given parameters, run on one animal with more reasonable bin size
+	to see actual results (e.g. are they interesting-do rats regularize?)
+
+to do:
+	- apply above parameters to more datasets
+		- process new datasets.
+		- run above for all of these different datasets. 
+	- write bootstrap code.
+		- write this as a function of model output files.
+		- read in data.
+		- take latents and compute a random sample with replacement
+			of size equal to number of time points
+		- write down expected complete data log likelihood as a function
+		of the random samples
+			- likelihood doesn't matter.
+			- we just need to sum up log probs of chosen z_t's
+				- equivalent to residual bootstrap estimator for AR1 process
+			- compute gradients for each pass. save all of the estimates
+				in a file.
+	- using above info, run an experiment with more data (bin size=10)
+
+
+
+	- start with latex template -> identify sections / experiments
+	- multiple datasets
+	- for one rat, can we properly estimate all model parameters and latent trajectories?
+		- pick trajectory with lowest marginal LL. (plot marginal LL)
+		- run for x iterations
+		- for iter with lowest marginal ll
+			- save particles, weights, model paramters, data.
+		- 
+	- write bootstrap estimation code. 
+		- implement residual bootstrap sample residual iid with replacement
+		- confirm when taking gradients likelihood does NOT matter.
+		- 
+
 2.21.19
-	- speed up smc to be parallelized across particles.
+	- speed up smc to be parallelized across particles. X 
+	- speed up expected complete data log likelihood by vectorizing over particles. X
+		- use ideas from the batch code we just wrote to get this to work properly.
+	- get all of this working using a GPU. this should make everything very fast using large # of particles. and time-steps (gpus taking awhile to get access to) X
+
+	- move forward with results for 10 sample bins.
+	- load all datasets.
+	- run until everything converges.
+	- evaluation plots.
+
+
+other optimization:
+	- figure out memory leak: rate of mem increase as we go through particle
+		filter is very fast when num_obs = 2 but much slower when num_obs=10
+
+
+misc:
+	- prepare precept notes
+	- gym 
+	- shower
+	- teach.
+
+
+
+	- get model to work for 1 time point at a time. for simplest model try large number of particles
+		and explore many different transition log scales and init log prior scales.
+		- if you cant get it to work for 1 time point, find smallest number of time points that it works
+		well for.
+
+
+	- look into particle degenearcy?
 	- organize and process many datasets to allow for param estimation 
 		across multiple datasets
 	- evaluation metrics
