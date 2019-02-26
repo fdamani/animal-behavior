@@ -48,14 +48,15 @@ if __name__ == '__main__':
     inference_types = ['map', 'mfvi', 'is', 'smc', 'vsmc']
     inference_type = inference_types[4]
 
-    sim = False
+    sim = True
 
     file_path = '../../../../tigress/fdamani/neuro_output/'
     savedir = file_path
     import datetime
     savedir += str(datetime.datetime.now())
 
-
+    datafiles = ['W065.csv', 'W066.csv', 'W068.csv', 'W072.csv', 'W073.csv', 'W074.csv', 'W075.csv', 'W078.csv',
+                 'W080.csv', 'W081.csv', 'W082.csv', 'W083.csv', 'W088.csv', 'W089.csv', 'W094.csv']
     if sim:
         # T = 200 # 100
         T = 100
@@ -65,23 +66,24 @@ if __name__ == '__main__':
         dim = 3
         init_prior = ([0.0]*dim, [math.log(1.0)]*dim)
         transition_scale = [math.log(.01)] * dim
-        log_sparsity = math.log(1e-2)
+        log_gamma = math.log(1e-3)
         embed()
-        beta = 4.5 # sigmoid(4.) = .9820
+        beta = 0.0 # sigmoid(4.) = .9820
         log_alpha = math.log(1e-3)
-        model = LearningDynamicsModel(init_prior, transition_scale, beta, log_alpha, dim=3, log_sparsity=log_sparsity)
+        model = LearningDynamicsModel(init_prior, transition_scale, beta, log_alpha, log_gamma, dim=3)
         #model = LogReg_LDS(init_prior=(0.0, 0.02), transition_scale=1e-3)
         num_obs_samples = 250
         y, x, z_true = model.sample(T=T, num_obs_samples=num_obs_samples)
 
-        # plt.plot(to_numpy(z_true))
+        plt.plot(to_numpy(z_true))
         # plt.show()
         # model params
     else:
-        num_obs = 75
+        num_obs = 300
         #f = '/tigress/fdamani/neuro_data/data/clean/LearningData_W066_minmaxnorm.txt'
         # data file
-        rat = 'W066.csv'
+        rat = datafiles[0]
+        print rat
         f = '/tigress/fdamani/neuro_data/data/raw/allrats_withmissing_limitedtrials/csv/'
         f += rat
         rat = f.split('/')[-1].split('.csv')[0]

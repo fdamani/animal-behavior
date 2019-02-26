@@ -65,6 +65,7 @@ def plot_model_params(model_params, savedir):
     beta = model_params[:, 0].flatten()
     alpha = model_params[:, 1].flatten()
     transition_log_scale = model_params[:, 2].flatten()
+    log_gamma = model_params[:, 3].flatten()
 
     plt.cla()
     plt.plot(beta)
@@ -77,6 +78,10 @@ def plot_model_params(model_params, savedir):
     plt.cla()
     plt.plot(transition_log_scale)
     plt.savefig(savedir+'/transition_log_scale.png')
+
+    plt.cla()
+    plt.plot(log_gamma)
+    plt.savefig(savedir+'/log_gamma.png')
 
 
 def save(loss_l, particles_l, weights_l, mean_l, scale_l, model_params, savedir):
@@ -93,7 +98,7 @@ class EM(object):
         self.data = data
         self.dim = self.data[1].size(2)
         self.T = self.data[1].size(0)
-        self.em_iters = 500
+        self.em_iters = 1000
         self.num_obs = num_obs
         self.model = None
         self.init_model()
@@ -107,6 +112,7 @@ class EM(object):
         global_params.append('init_beta: ' + str(self.model.beta.detach().cpu().numpy()))
         global_params.append('init_log_alpha: ' + str(self.model.log_alpha.detach().cpu().numpy()))
     
+        global_params.append('init_log_gamma: ' + str(self.model.log_gamma.detach().cpu().numpy()))
 
         print 'initialized model...'
 
@@ -120,9 +126,10 @@ class EM(object):
     def init_model(self,
                    init_prior_loc = 0.0,
                    init_prior_log_scale = 0.0,
-                   transition_log_scale = math.log(1e-1),
-                   beta = 5.0,
-                   log_alpha = math.log(1e-3)):
+                   transition_log_scale = -3.,
+                   beta = 0.0,
+                   log_alpha = -3., 
+                   log_gamma = -10.0):
 
         init_prior = ([init_prior_loc]*self.dim, [init_prior_log_scale]*self.dim)
         transition_log_scale = [transition_log_scale]#*self.dim
@@ -130,13 +137,15 @@ class EM(object):
         self.model = LearningDynamicsModel(init_prior=init_prior, 
                                            transition_log_scale=transition_log_scale, 
                                            beta=beta,
-                                           log_alpha=log_alpha, 
+                                           log_alpha=log_alpha,
+                                           log_gamma=log_gamma, 
                                            dim=self.dim, grad=False)
 
     def update_model(self, opt_params):
         self.model.beta = opt_params[0]
         self.model.log_alpha = opt_params[1]
         self.model.transition_log_scale = opt_params[2]
+        self.model.log_gamma = opt_params[3]
 
     def optimize(self):
         self.init_model()
@@ -153,12 +162,14 @@ class EM(object):
             plot(mean, scale, self.savedir)
 
             # m-step
-            opt_params, expected_likelihood = self.m_step.optimize(self.data, particles, weights)
+            opt_params, expected_likelihood, init_lh = self.m_step.optimize(self.data, particles, weights)
 
             # update model parameters
             self.update_model(opt_params)
 
             # append new params to lists
+            if i == 0:
+                loss_l.append(init_lh)
             loss_l.append(expected_likelihood)
             model_params.append([sx.detach().cpu().numpy() for sx in opt_params])
             particles_l.append(particles.detach().cpu().numpy()), weights_l.append(weights.detach().cpu().numpy())
@@ -185,7 +196,7 @@ class E_Step(object):
     def __init__(self, 
                  model,
                  T,
-                 num_particles=250):
+                 num_particles=350):
 
         self.model = model
         self.inference = None
@@ -227,7 +238,8 @@ class M_Step(object):
         # self.opt_params = [self.model.beta, self.model.transition_log_scale]
         self.opt_params = [self.model.beta, 
                            self.model.log_alpha, 
-                           self.model.transition_log_scale]
+                           self.model.transition_log_scale,
+                           self.model.log_gamma]
 
         self.optimizer = torch.optim.Adam(self.opt_params, lr = lr)
         self.num_iters = 4000
@@ -247,7 +259,6 @@ class M_Step(object):
         outputs = []
         for t in range(self.num_iters):
             # forward pass
-            embed()
             output = -self.forward(y, x, particles, weights)#, opt_params)
             # compute loss
             outputs.append(output.item())
@@ -261,19 +272,20 @@ class M_Step(object):
             #     output.backward(retain_graph=True)
             # else:
             #     output.backward()
-            if t % 500 == 0:
+            if t % 100 == 0:
                 print 'iter: ', t, \
                       'loss: ', output.item(), \
-                      'sparsity: ', self.model.beta.item(), \
-                      'alpha: ', self.model.log_alpha.item(), \
-                      'scale: ', self.model.transition_log_scale.item()
+                      'beta: ', torch.sigmoid(self.model.beta.detach()).item(), \
+                      'alpha: ', torch.exp(self.model.log_alpha.detach()).item(), \
+                      'scale: ', torch.exp(self.model.transition_log_scale.detach()).item(), \
+                      'gamma: ', torch.exp(self.model.log_gamma.detach()).item()
             # mem = torch.cuda.memory_allocated(device) /1e9
 
             # if float(mem) > 13:
             #     embed()
 
         self.model.init_no_grad_vbles()
-        return self.opt_params, outputs[-1]
+        return self.opt_params, outputs[-1], outputs[0]
 
 
 class Map(object):
