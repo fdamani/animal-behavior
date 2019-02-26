@@ -77,7 +77,6 @@ class LearningDynamicsModel(object):
 			x = torch.randn(T, num_obs_samples, dim-1, device=device)
 			x = torch.cat([intercept, x], dim=2)
 		
-		embed()
 		z = [self.sample_init_prior()]
 		z = [self.sample_init_prior()]
 
@@ -90,7 +89,6 @@ class LearningDynamicsModel(object):
 
 		y = torch.t(torch.cat(y, dim = 1))
 		z = torch.cat(z)
-		embed()
 		return y, x, z
 	def basis(self, x):
 		'''
@@ -187,14 +185,21 @@ class LearningDynamicsModel(object):
 
 		# properly vectorized
 		grad_rat_obj = self.grad_rat_obj_score_vec(y, x, z)[0:-1]
+		
+		grad_loss = -grad_rat_obj + \
+				    torch.exp(self.log_gamma)*self.sigmoid(self.beta)*z_prev + \
+				    torch.exp(self.log_gamma)*(1.0-self.sigmoid(self.beta))*torch.sign(z_prev) 
+
+		mean = z_prev - torch.exp(self.log_alpha) * grad_loss
+
 		# l2 = self.sigmoid(self.beta) * z_prev
-		learning = torch.exp(self.log_alpha) * grad_rat_obj
+		#learning = torch.exp(self.log_alpha) * grad_rat_obj
 		# l1 = torch.sign(z_prev) * torch.exp(self.log_sparsity)
-		penalty_size = torch.exp(self.log_gamma) # non-negative
-		what_penalty = self.sigmoid(self.beta) # between 0 and 1
-		regularization = penalty_size * (what_penalty * z_prev + (1.0 - what_penalty) * -torch.sign(z_prev))
+		#penalty_size = torch.exp(self.log_gamma) # non-negative
+		#what_penalty = self.sigmoid(self.beta) # between 0 and 1
+		#regularization = penalty_size * (what_penalty * z_prev + (1.0 - what_penalty) * -torch.sign(z_prev))
 		# sparsity = self.compute_sparsity_vec(z_prev)
-		mean = z_prev + learning + regularization
+		# mean = z_prev + learning + regularization
 		# mean = l2 + learning - l1
 		scale = torch.exp(self.transition_log_scale)
 		prior = Normal(mean, scale)
@@ -510,18 +515,25 @@ class LearningDynamicsModel(object):
 		y_prev =  y[-2][:, None]
 		x_prev = x[-2]#[None]
 		grad_rat_obj = self.grad_rat_obj_score_batch(y_prev, x_prev, z_prev[:, -1])
-		# 1 x particles x dim
-		learning = torch.exp(self.log_alpha) * grad_rat_obj
 
-		penalty_size = torch.exp(self.log_gamma)
-		what_penalty = self.sigmoid(self.beta)
+		grad_loss = -grad_rat_obj + \
+				    torch.exp(self.log_gamma)*self.sigmoid(self.beta)*z_prev[:, -1] + \
+				    torch.exp(self.log_gamma)*(1.0-self.sigmoid(self.beta))*torch.sign(z_prev[:, -1]) 
+
+		assert grad_loss.size() == grad_rat_obj.size()
+		mean = z_prev[:, -1] - torch.exp(self.log_alpha) * grad_loss
+
+		# 1 x particles x dim
+		# learning = torch.exp(self.log_alpha) * grad_rat_obj
+
+		# penalty_size = torch.exp(self.log_gamma)
+		# what_penalty = self.sigmoid(self.beta)
 		# particles x dimension
-		regularization = penalty_size * (what_penalty * z_prev[:, -1] + (1.0 - what_penalty) * -torch.sign(z_prev[:, -1]))
-		mean = z_prev[:, -1] + learning + regularization[None]
+		# regularization = penalty_size * (what_penalty * z_prev[:, -1] + (1.0 - what_penalty) * -torch.sign(z_prev[:, -1]))
+		# mean = z_prev[:, -1] + learning + regularization[None]
 		scale = torch.exp(self.transition_log_scale)
 		prior = Normal(mean, scale)
 		return torch.sum(prior.log_prob(z_t), dim=-1)
-
 
 	def log_prior_batch_compl_bootstrap(self, z, y1, x1, z1):
 		'''
@@ -530,13 +542,20 @@ class LearningDynamicsModel(object):
 		'''
 		z = z.transpose(1,0)
 		grad_rat_obj = self.grad_rat_obj_score_batch(y1, x1, z1)
-		learning = torch.exp(self.log_alpha) * grad_rat_obj
 
-		penalty_size = torch.exp(self.log_gamma)
-		what_penalty = self.sigmoid(self.beta)
+		grad_loss = -grad_rat_obj + \
+				    torch.exp(self.log_gamma)*self.sigmoid(self.beta)*z1 + \
+				    torch.exp(self.log_gamma)*(1.0-self.sigmoid(self.beta))*torch.sign(z1) 
+
+		mean = z1 - torch.exp(self.log_alpha) * grad_loss
+
+		# learning = torch.exp(self.log_alpha) * grad_rat_obj
+
+		# penalty_size = torch.exp(self.log_gamma)
+		# what_penalty = self.sigmoid(self.beta)
 		#regularization = penalty * z_prev[:, -1] + (1.0 - penalty) * -torch.sign(z_prev[:, -1])
-		regularization = penalty_size * (what_penalty * z1 + (1.0 - what_penalty) * -torch.sign(z1))
-		mean = z1 + learning + regularization
+		# regularization = penalty_size * (what_penalty * z1 + (1.0 - what_penalty) * -torch.sign(z1))
+		# mean = z1 + learning + regularization
 		scale = torch.exp(self.transition_log_scale)
 		prior = Normal(mean, scale)
 		log_prob = prior.log_prob(z)
@@ -556,13 +575,19 @@ class LearningDynamicsModel(object):
 		x_prev = x[:, 0:-1]
 		z = z.transpose(1,0)
 		grad_rat_obj = self.grad_rat_obj_score_batch(y, x, z)[0:-1]
-		learning = torch.exp(self.log_alpha) * grad_rat_obj
+		
+		grad_loss = -grad_rat_obj + \
+				    torch.exp(self.log_gamma)*self.sigmoid(self.beta)*z[0:-1] + \
+				    torch.exp(self.log_gamma)*(1.0-self.sigmoid(self.beta))*torch.sign(z[0:-1]) 
 
-		penalty_size = torch.exp(self.log_gamma)
-		what_penalty = self.sigmoid(self.beta)
+		mean = z[0:-1] - torch.exp(self.log_alpha) * grad_loss
+
+		# learning = torch.exp(self.log_alpha) * grad_rat_obj
+		# penalty_size = torch.exp(self.log_gamma)
+		# what_penalty = self.sigmoid(self.beta)
 		#regularization = penalty * z_prev[:, -1] + (1.0 - penalty) * -torch.sign(z_prev[:, -1])
-		regularization = penalty_size * (what_penalty * z + (1.0 - what_penalty) * -torch.sign(z))[0:-1]
-		mean = z[0:-1] + learning + regularization
+		# regularization = penalty_size * (what_penalty * z + (1.0 - what_penalty) * -torch.sign(z))[0:-1]
+		# mean = z[0:-1] + learning + regularization
 		scale = torch.exp(self.transition_log_scale)
 		prior = Normal(mean, scale)
 		log_prob = prior.log_prob(z[1:])
@@ -582,57 +607,46 @@ class LearningDynamicsModel(object):
 
 		grad_rat_obj = self.grad_rat_obj_score(y_prev, x_prev, z_prev[-1][None])
 		
+		grad_loss = -grad_rat_obj + \
+				    torch.exp(self.log_gamma)*self.sigmoid(self.beta)*z_prev[-1] + \
+				    torch.exp(self.log_gamma)*(1.0-self.sigmoid(self.beta))*torch.sign(z_prev[-1]) 
+
+		mean = z_prev[-1] - torch.exp(self.log_alpha) * grad_loss
+
 		# l2 = self.sigmoid(self.beta) * z_prev[-1]
-		learning = torch.exp(self.log_alpha) * grad_rat_obj
+		# learning = torch.exp(self.log_alpha) * grad_rat_obj
 		# l1 = torch.sign(z_prev[-1]) * torch.exp(self.log_sparsity)
 		#sparsity = self.compute_sparsity(z_prev[-1])
 
-		penalty_size = torch.exp(self.log_gamma)
-		what_penalty = self.sigmoid(self.beta)
-		regularization = penalty_size * (what_penalty * z_prev[-1] + (1.0 - what_penalty) * -torch.sign(z_prev[-1]))
-		mean = z_prev[-1] + learning + regularization
-
+		# penalty_size = torch.exp(self.log_gamma)
+		# what_penalty = self.sigmoid(self.beta)
+		# regularization = penalty_size * (what_penalty * z_prev[-1] + (1.0 - what_penalty) * -torch.sign(z_prev[-1]))
+		# mean = z_prev[-1] + learning + regularization
 		# mean = l2 + learning - l1
 		scale = torch.exp(self.transition_log_scale)
-
 		prior = Normal(mean, scale)
 		return torch.sum(prior.log_prob(z_t))
-
-	def log_prior_t_test(self, z, y, x):
-		'''
-			input: z_1:t
-			parameterize p(z_t | z_t-1, theta)
-		'''
-		z_t = z[-1][None]
-		z_prev = z[:-1]#[None]
-		y_prev =  y[-2][:, None]
-		x_prev = x[-2]#[None]
-
-		grad_rat_obj = self.grad_rat_obj_score(y_prev, x_prev, z_prev[-1][None])
-
-		mean = self.sigmoid(self.beta) * z_prev[-1] + torch.exp(self.log_alpha) * grad_rat_obj
-		scale = torch.exp(self.transition_log_scale)
-
-		prior = Normal(mean, scale)
-		return torch.sum(prior.log_prob(z_t))#, mean, grad_rat_obj
-
 
 	def sample_prior(self, z_prev, y_prev=None, x_prev=None):
 		'''sample from p(z_t | z_t-1, y_t-1, x_t-1)
 
 		z_t+1 = beta * z_t + alpha * grad_rat_obj - sgn(z_t)*C
 		'''
-		# add learning component
+		# compute policy gradient
 		grad_rat_obj = self.grad_rat_obj_score(y_prev, x_prev, z_prev)
 		
-		penalty_size = torch.exp(self.log_gamma)
-		what_penalty = self.sigmoid(self.beta)
-		regularization = penalty_size * (what_penalty * z_prev + (1.0 - what_penalty) * -torch.sign(z_prev))
+		grad_loss = -grad_rat_obj + \
+				    torch.exp(self.log_gamma)*self.sigmoid(self.beta)*z_prev + \
+				    torch.exp(self.log_gamma)*(1.0-self.sigmoid(self.beta))*torch.sign(z_prev) 
+
+		mean = z_prev - torch.exp(self.log_alpha) * grad_loss
+
+		#regularization = penalty_size * (what_penalty * z_prev + (1.0 - what_penalty) * -torch.sign(z_prev))
 		# l2 = self.sigmoid(self.beta) * z_prev
-		learning = torch.exp(self.log_alpha) * grad_rat_obj
+		#learning = torch.exp(self.log_alpha) * grad_rat_obj
 		# l1 = torch.sign(z_prev) * torch.exp(self.log_sparsity)
 		# sparsity = self.compute_sparsity(z_prev)
-		mean = z_prev + learning + regularization
+		#mean = z_prev + learning + regularization
 		# mean = l2 + learning - l1
 		scale = torch.exp(self.transition_log_scale)
 		prior = Normal(mean, scale)

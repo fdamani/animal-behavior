@@ -5,7 +5,7 @@ import os
 import numpy as np
 import math
 import matplotlib
-# matplotlib.use('Agg')
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from IPython import display, embed
 import torch
@@ -83,7 +83,6 @@ def plot_model_params(model_params, savedir):
     plt.plot(log_gamma)
     plt.savefig(savedir+'/log_gamma.png')
 
-
 def save(loss_l, particles_l, weights_l, mean_l, scale_l, model_params, savedir):
     np.save(savedir+'/loss_l.npy', loss_l)
     np.save(savedir+'/particles_l.npy', particles_l)
@@ -126,10 +125,10 @@ class EM(object):
     def init_model(self,
                    init_prior_loc = 0.0,
                    init_prior_log_scale = 0.0,
-                   transition_log_scale = -3.,
-                   beta = 0.0,
-                   log_alpha = -3., 
-                   log_gamma = -10.0):
+                   transition_log_scale = math.log(0.01),
+                   beta = 10.0,
+                   log_alpha = math.log(1e-2), 
+                   log_gamma = math.log(1e0)):
 
         init_prior = ([init_prior_loc]*self.dim, [init_prior_log_scale]*self.dim)
         transition_log_scale = [transition_log_scale]#*self.dim
@@ -232,10 +231,11 @@ class E_Step(object):
 class M_Step(object):
     def __init__(self, 
                  model,
-                 lr = 1e-5):
+                 lr = 1e-1):
         self.model = model
         # self.opt_params = [self.model.transition_log_scale]
         # self.opt_params = [self.model.beta, self.model.transition_log_scale]
+        #self.opt_params = [self.model.log_gamma]
         self.opt_params = [self.model.beta, 
                            self.model.log_alpha, 
                            self.model.transition_log_scale,
@@ -245,7 +245,6 @@ class M_Step(object):
         self.num_iters = 4000
         global_params.append('adam learning rate: ' + str(lr))
         global_params.append('m step num iters: ' + str(self.num_iters))
-
 
     def unpack_params(self, params):
         return params[0]
@@ -279,14 +278,9 @@ class M_Step(object):
                       'alpha: ', torch.exp(self.model.log_alpha.detach()).item(), \
                       'scale: ', torch.exp(self.model.transition_log_scale.detach()).item(), \
                       'gamma: ', torch.exp(self.model.log_gamma.detach()).item()
-            # mem = torch.cuda.memory_allocated(device) /1e9
-
-            # if float(mem) > 13:
-            #     embed()
 
         self.model.init_no_grad_vbles()
         return self.opt_params, outputs[-1], outputs[0]
-
 
 class Map(object):
     def __init__(self, model):

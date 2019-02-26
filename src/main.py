@@ -47,10 +47,9 @@ if __name__ == '__main__':
 
     inference_types = ['map', 'mfvi', 'is', 'smc', 'vsmc']
     inference_type = inference_types[4]
-
-    sim = True
-
+    sim = False
     file_path = '../../../../tigress/fdamani/neuro_output/'
+    # file_path = 'output/'
     savedir = file_path
     import datetime
     savedir += str(datetime.datetime.now())
@@ -59,24 +58,24 @@ if __name__ == '__main__':
                  'W080.csv', 'W081.csv', 'W082.csv', 'W083.csv', 'W088.csv', 'W089.csv', 'W094.csv']
     if sim:
         # T = 200 # 100
-        T = 100
-        num_particles = 100# 200
+        T = 300
+        num_particles = 25# 200
         # time-series model
         # sim model parameters
         dim = 3
         init_prior = ([0.0]*dim, [math.log(1.0)]*dim)
         transition_scale = [math.log(.01)] * dim
-        log_gamma = math.log(1e-3)
-        embed()
-        beta = 0.0 # sigmoid(4.) = .9820
-        log_alpha = math.log(1e-3)
+        log_gamma = math.log(1e-0)
+        beta = 10. # sigmoid(4.) = .9820
+        log_alpha = math.log(1e-2)
         model = LearningDynamicsModel(init_prior, transition_scale, beta, log_alpha, log_gamma, dim=3)
         #model = LogReg_LDS(init_prior=(0.0, 0.02), transition_scale=1e-3)
-        num_obs_samples = 250
-        y, x, z_true = model.sample(T=T, num_obs_samples=num_obs_samples)
+        num_obs = 75
+        y, x, z_true = model.sample(T=T, num_obs_samples=num_obs)
 
         plt.plot(to_numpy(z_true))
-        # plt.show()
+        plt.show()
+        embed()
         # model params
     else:
         num_obs = 300
@@ -91,14 +90,14 @@ if __name__ == '__main__':
         # add to dir name
         savedir += '__obs'+str(num_obs)
         savedir += '__'+rat
-        os.mkdir(savedir)
-        os.mkdir(savedir+'/data')
 
         x, y, rw = read_and_process(num_obs, f, savedir)
         x = torch.tensor(x, dtype=dtype, device=device)
         y = torch.tensor(y, dtype=dtype, device=device)
         rw = torch.tensor(rw, dtype=dtype, device=device)
-    
+
+    os.mkdir(savedir)
+    os.mkdir(savedir+'/data')
     np.save(savedir+'/data/y.npy', y.detach().cpu().numpy())
     np.save(savedir+'/data/x.npy', x.detach().cpu().numpy())
     np.save(savedir+'/data/rw.npy', rw.detach().cpu().numpy())
