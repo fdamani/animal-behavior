@@ -125,10 +125,10 @@ class EM(object):
     def init_model(self,
                    init_prior_loc = 0.0,
                    init_prior_log_scale = 0.0,
-                   transition_log_scale = math.log(0.01),
-                   beta = 10.0,
+                   transition_log_scale = math.log(0.1),
+                   beta = 0.0,
                    log_alpha = math.log(1e-2), 
-                   log_gamma = math.log(1e0)):
+                   log_gamma = math.log(1e-2)):
 
         init_prior = ([init_prior_loc]*self.dim, [init_prior_log_scale]*self.dim)
         transition_log_scale = [transition_log_scale]#*self.dim
@@ -231,7 +231,7 @@ class E_Step(object):
 class M_Step(object):
     def __init__(self, 
                  model,
-                 lr = 1e-1):
+                 lr = 1e-3):
         self.model = model
         # self.opt_params = [self.model.transition_log_scale]
         # self.opt_params = [self.model.beta, self.model.transition_log_scale]
@@ -242,7 +242,7 @@ class M_Step(object):
                            self.model.log_gamma]
 
         self.optimizer = torch.optim.Adam(self.opt_params, lr = lr)
-        self.num_iters = 4000
+        self.num_iters = 1000
         global_params.append('adam learning rate: ' + str(lr))
         global_params.append('m step num iters: ' + str(self.num_iters))
 
@@ -271,7 +271,7 @@ class M_Step(object):
             #     output.backward(retain_graph=True)
             # else:
             #     output.backward()
-            if t % 100 == 0:
+            if t % 250 == 0:
                 print 'iter: ', t, \
                       'loss: ', output.item(), \
                       'beta: ', torch.sigmoid(self.model.beta.detach()).item(), \

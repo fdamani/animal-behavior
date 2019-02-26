@@ -78,7 +78,7 @@ if __name__ == '__main__':
         embed()
         # model params
     else:
-        num_obs = 300
+        num_obs = 100
         #f = '/tigress/fdamani/neuro_data/data/clean/LearningData_W066_minmaxnorm.txt'
         # data file
         rat = datafiles[0]
@@ -91,12 +91,13 @@ if __name__ == '__main__':
         savedir += '__obs'+str(num_obs)
         savedir += '__'+rat
 
+        os.mkdir(savedir)
+
         x, y, rw = read_and_process(num_obs, f, savedir)
         x = torch.tensor(x, dtype=dtype, device=device)
         y = torch.tensor(y, dtype=dtype, device=device)
         rw = torch.tensor(rw, dtype=dtype, device=device)
 
-    os.mkdir(savedir)
     os.mkdir(savedir+'/data')
     np.save(savedir+'/data/y.npy', y.detach().cpu().numpy())
     np.save(savedir+'/data/x.npy', x.detach().cpu().numpy())
