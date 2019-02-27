@@ -63,13 +63,13 @@ def plot_loss(loss, savedir):
 
 def plot_model_params(model_params, savedir):
     beta = model_params[:, 0].flatten()
-    alpha = model_params[:, 1].flatten()
-    transition_log_scale = model_params[:, 2].flatten()
-    log_gamma = model_params[:, 3].flatten()
+    alpha = model_params[:, 0].flatten()
+    transition_log_scale = model_params[:, 1].flatten()
+    # log_gamma = model_params[:, 3].flatten()
 
-    plt.cla()
-    plt.plot(beta)
-    plt.savefig(savedir+'/beta.png')
+    # plt.cla()
+    # plt.plot(beta)
+    # plt.savefig(savedir+'/beta.png')
 
     plt.cla()
     plt.plot(alpha)
@@ -79,9 +79,9 @@ def plot_model_params(model_params, savedir):
     plt.plot(transition_log_scale)
     plt.savefig(savedir+'/transition_log_scale.png')
 
-    plt.cla()
-    plt.plot(log_gamma)
-    plt.savefig(savedir+'/log_gamma.png')
+    # plt.cla()
+    # plt.plot(log_gamma)
+    # plt.savefig(savedir+'/log_gamma.png')
 
 def save(loss_l, particles_l, weights_l, mean_l, scale_l, model_params, savedir):
     np.save(savedir+'/loss_l.npy', loss_l)
@@ -89,7 +89,7 @@ def save(loss_l, particles_l, weights_l, mean_l, scale_l, model_params, savedir)
     np.save(savedir+'/weights_l.npy', weights_l)
     np.save(savedir+'/mean_l.npy', mean_l)
     np.save(savedir+'/scale_l.npy', scale_l)
-    np.save(savedir+'/model_params.npy', model_params)
+    #np.save(savedir+'/model_params.npy', model_params)
 
 class EM(object):
     def __init__(self, data, savedir, num_obs):
@@ -97,7 +97,7 @@ class EM(object):
         self.data = data
         self.dim = self.data[1].size(2)
         self.T = self.data[1].size(0)
-        self.em_iters = 1000
+        self.em_iters = 2000
         self.num_obs = num_obs
         self.model = None
         self.init_model()
@@ -125,14 +125,13 @@ class EM(object):
     def init_model(self,
                    init_prior_loc = 0.0,
                    init_prior_log_scale = 0.0,
-                   transition_log_scale = math.log(0.1),
+                   transition_log_scale = -3.,
                    beta = 0.0,
-                   log_alpha = math.log(1e-2), 
-                   log_gamma = math.log(1e-2)):
-
+                   log_alpha = -3.25, 
+                   log_gamma = -3.0):
         init_prior = ([init_prior_loc]*self.dim, [init_prior_log_scale]*self.dim)
         transition_log_scale = [transition_log_scale]#*self.dim
-        # log_alpha = [log_alpha] * self.dim
+        log_alpha = [log_alpha]# * self.dim
         self.model = LearningDynamicsModel(init_prior=init_prior, 
                                            transition_log_scale=transition_log_scale, 
                                            beta=beta,
@@ -142,6 +141,7 @@ class EM(object):
 
     def update_model(self, opt_params):
         self.model.beta = opt_params[0]
+        print 'update model...'
         self.model.log_alpha = opt_params[1]
         self.model.transition_log_scale = opt_params[2]
         self.model.log_gamma = opt_params[3]
@@ -149,7 +149,7 @@ class EM(object):
     def optimize(self):
         self.init_model()
         print 'gpu usage: ', torch.cuda.memory_allocated(device) /1e9
-
+        print 'cpu usage: ', print_memory()
         print 'optimizing...'
         loss_l, particles_l, weights_l, mean_l, scale_l, model_params = [], [], [], [], [], []
         outfile = open(self.savedir+'/params.txt', 'wb')
@@ -158,7 +158,7 @@ class EM(object):
             particles, weights, mean, scale, marginal_ll = self.e_step.forward(self.data, self.model)
 
             # plot
-            plot(mean, scale, self.savedir)
+            # plot(mean, scale, self.savedir)
 
             # m-step
             opt_params, expected_likelihood, init_lh = self.m_step.optimize(self.data, particles, weights)
@@ -178,12 +178,13 @@ class EM(object):
             print 'EM iter: ', i, '\n'
             plot(mean, scale, self.savedir)
             plot_loss(loss_l, self.savedir)
-            plot_model_params(np.array(model_params), self.savedir)
+            # plot_model_params(model_params, self.savedir)
 
             if i % 10 == 0:
                 # save
                 save(np.array(loss_l), np.array(particles_l), np.array(weights_l), np.array(mean_l), 
                     np.array(scale_l), model_params, self.savedir)
+
 
             if i == 0:
                 outfile.write("\n".join(global_params))
@@ -233,16 +234,17 @@ class M_Step(object):
                  model,
                  lr = 1e-3):
         self.model = model
-        # self.opt_params = [self.model.transition_log_scale]
+        #self.opt_params = [self.model.transition_log_scale]
         # self.opt_params = [self.model.beta, self.model.transition_log_scale]
         #self.opt_params = [self.model.log_gamma]
+        # self.opt_params = [self.model.log_alpha, self.model.transition_log_scale]
         self.opt_params = [self.model.beta, 
                            self.model.log_alpha, 
                            self.model.transition_log_scale,
                            self.model.log_gamma]
 
         self.optimizer = torch.optim.Adam(self.opt_params, lr = lr)
-        self.num_iters = 1000
+        self.num_iters = 500
         global_params.append('adam learning rate: ' + str(lr))
         global_params.append('m step num iters: ' + str(self.num_iters))
 

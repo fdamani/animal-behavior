@@ -39,8 +39,11 @@ dtype = torch.float32
 # randomly sample rows.
 
 # load model parameters
-import sys
-f = sys.argv[1]
+f = '/tigress/fdamani/neuro_output/diffusion_l_s/'
+files = os.listdir(f)
+f += files[int(sys.argv[1])] + '/'
+
+print f
 #f = '/tigress/fdamani/neuro_output/2019-02-23 16:41:23.358163__obs75__W066'
 model_params = np.load(f+'model_params.npy')
 weights = np.load(f+'weights_l.npy')
@@ -52,6 +55,11 @@ init_prior = (0.0, 1.0)
 beta = model_params[-1][0]
 log_alpha = model_params[-1][1]
 transition_log_scale = model_params[-1][2]
+log_gamma = model_params[-1][3]
+#log_gamma = np.array([math.log(1e-10)], dtype=np.float32)
+# log_gamma = np.array([math.log(1e-10)], dtype=np.float32)
+#beta = np.array([0.0], dtype=np.float32)
+#log_alpha = np.array([math.log(1e-10)], dtype=np.float32)
 
 x = torch.tensor(x, device=device)
 y = torch.tensor(y, device=device)
@@ -92,13 +100,15 @@ for data in datasets:
     model = LearningDynamicsModel(init_prior=init_prior, 
                                        transition_log_scale=transition_log_scale, 
                                        beta=beta,
-                                       log_alpha=log_alpha, 
+                                       log_alpha=log_alpha,
+                                       log_gamma = log_gamma, 
                                        dim=dim, grad=False)
     model.init_grad_vbles()
     lr = 5e-2
     opt_params = [model.beta, 
-                       model.log_alpha, 
-                       model.transition_log_scale]
+                  model.log_alpha, 
+                  model.transition_log_scale,
+                  model.log_gamma]
 
     optimizer = torch.optim.Adam(opt_params, lr = lr)
     num_iters = 3000
@@ -118,9 +128,10 @@ for data in datasets:
                   'loss: ', output.item(), \
                   'sparsity: ', model.beta.item(), \
                   'alpha: ', model.log_alpha.item(), \
-                  'scale: ', model.transition_log_scale.item()
+                  'scale: ', model.transition_log_scale.item(), \
+                  'regularization: ', model.log_gamma.item()
     model.init_no_grad_vbles()
 
     bootstrapped_params.append((model.beta.item(), model.log_alpha.item(), 
-        model.transition_log_scale.item()))
+        model.transition_log_scale.item(), model.log_gamma.item()))
 np.save(f+'bootstrap_params.npy', bootstrapped_params)

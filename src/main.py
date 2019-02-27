@@ -48,7 +48,7 @@ if __name__ == '__main__':
     inference_types = ['map', 'mfvi', 'is', 'smc', 'vsmc']
     inference_type = inference_types[4]
     sim = False
-    file_path = '../../../../tigress/fdamani/neuro_output/'
+    file_path = '/tigress/fdamani/neuro_output/'
     # file_path = 'output/'
     savedir = file_path
     import datetime
@@ -78,10 +78,11 @@ if __name__ == '__main__':
         embed()
         # model params
     else:
-        num_obs = 100
+        num_obs = 10
         #f = '/tigress/fdamani/neuro_data/data/clean/LearningData_W066_minmaxnorm.txt'
         # data file
-        rat = datafiles[0]
+        index = sys.argv[1]
+        rat = datafiles[int(index)]
         print rat
         f = '/tigress/fdamani/neuro_data/data/raw/allrats_withmissing_limitedtrials/csv/'
         f += rat
