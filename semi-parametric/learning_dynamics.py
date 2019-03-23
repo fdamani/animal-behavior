@@ -9,7 +9,7 @@ import os
 import numpy as np
 import math
 import matplotlib
-#matplotlib.use('Agg')
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from IPython import display, embed
 import torch
@@ -50,7 +50,7 @@ class RNN(nn.Module):
         return output, hidden
 
     def initHidden(self):
-        return torch.zeros(1, self.hidden_size)
+        return torch.zeros(1, self.hidden_size, device=device)
 
 
 class LearningDynamicsModel(object):

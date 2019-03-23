@@ -1,9 +1,7 @@
 Gameplan:
 
-- train RNN on 
-
-
-
+- RNN works. problem is its slow
+- TODO: for now, train on small dataset. (500 samples).
 
 
 
