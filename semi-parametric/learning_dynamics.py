@@ -165,14 +165,24 @@ class LearningDynamicsModel(object):
         logprob += self.log_likelihood_compl_batch(y, x, z)
         return logprob
 
+    def return_train_ind(self, y):
+        return y[:,0] != -1
+
 
     def log_likelihood_vec(self, y, x, z):
         '''
             p(y_t | y_1:t-1, x_1:t, z_1:t)
+            y will contain -1's denoting unobserved data
+            only compute log probs for observed y's.
+            identify indices where y does not equal -1
+            compute log probs for those and then sum accordingly.
         '''
         logits = torch.sum(x * z[:, None, :], dim=2)
-        obs = Bernoulli(logits=logits)
-        return torch.sum(obs.log_prob(y))
+        train_inds = self.return_train_ind(y)
+        logits_train = logits[train_inds]
+        # limit logits to observed y's
+        obs = Bernoulli(logits=logits_train)
+        return torch.sum(obs.log_prob(y[train_inds]))
 
     def log_prior_vec(self, z, y, x):
         '''

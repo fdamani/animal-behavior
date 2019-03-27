@@ -94,6 +94,7 @@ if __name__ == '__main__':
         # f = '../data/W066_short.csv'
    
         x, y, rw = read_and_process(num_obs, f, savedir=savedir)
+        rw = torch.tensor(rw, dtype=dtype, device=device)
 
 
         # rnn_hiddens = torch.load('hiddens_rnn_7_features.pt')
@@ -121,8 +122,6 @@ if __name__ == '__main__':
     x = torch.tensor(x, dtype=dtype, device=device)
     y_train = torch.tensor(y_train, dtype=dtype, device=device)
     y_test = torch.tensor(y_test, dtype=dtype, device=device)
-    
-    rw = torch.tensor(rw, dtype=dtype, device=device)
     data = [y_train, x]
     # declare model here
     model = LearningDynamicsModel(init_prior, transition_scale, dim=3)
