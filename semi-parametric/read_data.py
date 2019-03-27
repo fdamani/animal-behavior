@@ -128,3 +128,25 @@ def featurize_x(x, y, rw, true_side):
 	#design_mat = np.concatenate([x, choice_m1, choice_m2, true_side_m1, true_side_m2],axis=1)
 	return design_mat
 
+
+def train_test_split(y, x):
+	'''
+	y: T x obs
+	x: T x obs x dim
+	randomly select 10% of time point indices
+	return y_train which contains -1s
+	return y_test which is real values for -1s..
+	'''
+	T = y.shape[0]
+	num_obs = y.shape[1]
+	dim = x.shape[2]
+	inds = np.arange(T)
+	test_inds = np.random.choice(a=inds, size=int(.1*T), replace=False)
+	mask = np.ones_like(inds, bool)
+	y_test = np.copy(y)[test_inds]
+	#x_test = np.copy(x)[test_inds]
+	y_train = y
+	y_train[test_inds] = -1
+	return y_train, y_test
+
+
