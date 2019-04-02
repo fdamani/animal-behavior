@@ -5,7 +5,7 @@ import os
 import numpy as np
 import math
 import matplotlib
-matplotlib.use('Agg')
+#matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from IPython import display, embed
 import torch
@@ -129,24 +129,57 @@ def featurize_x(x, y, rw, true_side):
 	return design_mat
 
 
-def train_test_split(y, x):
+def train_test_split(y, x, cat):
 	'''
 	y: T x obs
 	x: T x obs x dim
 	randomly select 10% of time point indices
 	return y_train which contains -1s
 	return y_test which is real values for -1s..
+
+
+	cat: 'single' or 'band'
+	for band:
+		- uniform indices across time-series then take +/- window
+		- random indices then take +/- window
+		- ask to predict middle of each session +/- window
+		- ask to predict end of each session +/- window.
 	'''
-	T = y.shape[0]
-	num_obs = y.shape[1]
-	dim = x.shape[2]
-	inds = np.arange(T)
-	test_inds = np.random.choice(a=inds, size=int(.1*T), replace=False)
-	mask = np.ones_like(inds, bool)
-	y_test = np.copy(y)[test_inds]
-	#x_test = np.copy(x)[test_inds]
-	y_train = y
-	y_train[test_inds] = -1
-	return y_train, y_test
+	if cat == 'single':
+		percent_random_inds = .8
+		T = y.shape[0]
+		num_obs = y.shape[1]
+		dim = x.shape[2]
+		inds = np.arange(T)
+		test_inds = np.random.choice(a=inds, size=int(percent_random_inds*T), replace=False)
+		mask = np.ones_like(inds, bool)
+		y_test = np.copy(y)[test_inds]
+		#x_test = np.copy(x)[test_inds]
+		y_train = y
+		y_train[test_inds] = -1
+	elif cat == 'band':
+		window_size = 2
+		percent_random_inds = .2
+		T = y.shape[0]
+		num_obs = y.shape[1]
+		dim = x.shape[2]
+		inds = np.arange(T)
+		test_inds = np.random.choice(a=inds, size=int(percent_random_inds*T), replace=False)
+		test_inds = enumerate_neighbor_inds(test_inds, window_size)
+		mask = np.ones_like(inds, bool)
+		y_test = np.copy(y)[test_inds]
+		#x_test = np.copy(x)[test_inds]
+		y_train = y
+		y_train[test_inds] = -1
+	else:
+		print 'Error: Please specify single or band.'
+	return y_train, y_test, test_inds
 
-
+def enumerate_neighbor_inds(x, window_size):
+	sx = []
+	one_side = int(window_size)
+	for i in x:
+		sx.append(np.arange(i-one_side, i+one_side))
+	inds = np.concatenate(sx)
+	inds = inds[inds > 10]
+	return inds

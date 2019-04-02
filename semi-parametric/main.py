@@ -5,7 +5,7 @@ import os
 import numpy as np
 import math
 import matplotlib
-matplotlib.use('Agg')
+#matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from IPython import display, embed
 import torch
@@ -22,6 +22,7 @@ from inference import Inference, MeanFieldVI
 import psutil
 import learning_dynamics
 from learning_dynamics import LearningDynamicsModel
+from evaluation import Evaluate
 import read_data
 from read_data import read_and_process, train_test_split
 process = psutil.Process(os.getpid())
@@ -72,7 +73,8 @@ if __name__ == '__main__':
         z_true = z_true.detach().cpu().numpy()
 
         plt.plot(z_true)
-        plt.savefig('sim_z.png')
+        #plt.show()
+        #plt.savefig('sim_z.png')
         # embed()
         # model params
     else:
@@ -117,16 +119,23 @@ if __name__ == '__main__':
     # np.save(savedir+'/data/x.npy', x.detach().cpu().numpy())
     # np.save(savedir+'/data/rw.npy', rw.detach().cpu().numpy())
     # print 'gpu usage: ', torch.cuda.memory_allocated(device) /1e9
-    y_train, y_test = train_test_split(y, x)
+    y_train, y_test, test_inds = train_test_split(y, x, cat='single')
     x = torch.tensor(x, dtype=dtype, device=device)
     y_train = torch.tensor(y_train, dtype=dtype, device=device)
     y_test = torch.tensor(y_test, dtype=dtype, device=device)
-    data = [y_train, x]
+    test_inds = torch.tensor(test_inds, dtype=torch.long, device=device)
+    #data = [y_train, x]
+    data = [y_train, x, y_test, test_inds]
+    embed()
+
     # declare model here
     model = LearningDynamicsModel(init_prior, transition_scale, dim=3)
     sx = Inference(data, model, savedir='', num_obs=num_obs)
     opt_params = sx.optimize()
+    data = [y_train, x, y_test, test_inds]
 
+    # ev = Evaluate(data, model, savedir='', num_obs=num_obs)
+    # train_ll, test_ll = ev.valid_loss()
     # then test!
 
   

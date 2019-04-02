@@ -9,7 +9,7 @@ import os
 import numpy as np
 import math
 import matplotlib
-matplotlib.use('Agg')
+#matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from IPython import display, embed
 import torch
@@ -198,6 +198,19 @@ class LearningDynamicsModel(object):
         scale = torch.exp(self.transition_log_scale)
         prior = Normal(mean, scale)
         return torch.sum(prior.log_prob(z_curr))
+
+    def log_likelihood_test(self, y_train, y_test, test_inds, x, z):
+        logits = torch.sum(x * z[:, None, :], dim=2)
+        train_inds = self.return_train_ind(y_train)
+        logits_train = logits[train_inds]
+        obs = Bernoulli(logits=logits_train)
+        train_ll = torch.sum(obs.log_prob(y_train[train_inds]))
+        logits_test = logits[test_inds]
+        obs = Bernoulli(logits=logits_test)
+        test_ll = torch.sum(obs.log_prob(y_test))
+        train_probs = self.sigmoid(logits_train)
+        test_probs = self.sigmoid(logits_test)
+        return train_ll, test_ll, train_probs, test_probs
 
 
 def print_memory():
