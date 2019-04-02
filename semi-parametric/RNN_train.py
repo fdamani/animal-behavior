@@ -5,7 +5,7 @@ import os
 import numpy as np
 import math
 import matplotlib
-#matplotlib.use('Agg')
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from IPython import display, embed
 import torch
@@ -75,24 +75,23 @@ if __name__ == '__main__':
         # embed()
         # model params
     else:
-        num_obs = 1
+        num_obs = 200
         #f = '/tigress/fdamani/neuro_data/data/clean/LearningData_W066_minmaxnorm.txt'
         # data file
         index = 0# sys.argv[1]
         rat = datafiles[int(index)]
         print rat
-        # f = '/tigress/fdamani/neuro_data/data/raw/allrats_withmissing_limitedtrials/csv/'
-        # f += rat
-        # rat = f.split('/')[-1].split('.csv')[0]
+        f = '/tigress/fdamani/neuro_data/data/raw/allrats_withmissing_limitedtrials/csv/'
+        f += rat
+        rat = f.split('/')[-1].split('.csv')[0]
         
         # add to dir name
-        # savedir += '__obs'+str(num_obs)
-        # savedir += '__'+rat
+        savedir += '__obs'+str(num_obs)
+        savedir += '__'+rat
 
         # os.mkdir(savedir)
-        f = '../data/W066_short.csv'
-   
-        x, y, rw = read_and_process(num_obs, f, savedir='')
+        #f = '../data/W066_short.csv'
+        x, y, rw = read_and_process(num_obs, f, savedir=savedir)
         x = torch.tensor(x, dtype=dtype, device=device)
         y = torch.tensor(y, dtype=dtype, device=device)
         rw = torch.tensor(rw, dtype=dtype, device=device)
@@ -105,12 +104,15 @@ if __name__ == '__main__':
     # np.save(savedir+'/data/x.npy', x.detach().cpu().numpy())
     # np.save(savedir+'/data/rw.npy', rw.detach().cpu().numpy())
     # print 'gpu usage: ', torch.cuda.memory_allocated(device) /1e9
-    data = [y, x]    
+    x = x[:, 0, :][:, None, :] # take first observation from every time point
+    y = y[:, 0][:, None]
+    data = [y, x]
     criterion = nn.BCEWithLogitsLoss()
     n_hidden = 128
     output_size = 1
     rnn = RNN(dim, n_hidden, output_size)
-    lr = 1e-3
+    rnn.to(device)
+    lr = 1e-4
     clip = 0.25
     optimizer = torch.optim.Adam(rnn.parameters(), lr = lr)
     for i in range(10000):
@@ -127,17 +129,20 @@ if __name__ == '__main__':
         for p in rnn.parameters():
             p.data.add_(-lr, p.grad.data)
         optimizer.step()
-        print loss.item()
+        print i, loss.item()
+        if loss.item() < 1e-2:
+            break
         ####### still not working. FIX. loss=not going down.
     # after training
     hidden = rnn.initHidden()
     hiddens = torch.zeros(T, n_hidden)
     loss = 0
     for i in range(T):
+        embed()
         output, hidden = rnn(x[i], hidden)
         hiddens[i] = hidden
         loss += criterion(output, y[i][None])
     print loss.item()
-    torch.save(hiddens, 'hiddens.pt')
+    torch.save(hiddens.detach(), 'hiddens.pt')
     embed()
   
