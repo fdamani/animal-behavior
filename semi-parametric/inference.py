@@ -96,6 +96,7 @@ class Map(object):
         params = self.unpack_params(params)
         return self.model.logjoint(x, params)
 
+
 class Inference(object):
     def __init__(self, data, model, savedir, num_obs):
         self.data = data
@@ -110,7 +111,8 @@ class Inference(object):
 
         self.iters = 10000
         lr = 1e-2
-        self.optimizer = torch.optim.Adam(self.var_params, lr = lr)
+        self.opt_params = self.var_params
+        self.optimizer = torch.optim.Adam(self.opt_params, lr = lr)
 
     def optimize(self):
         #print 'gpu usage: ', torch.cuda.memory_allocated(device) /1e9
@@ -128,11 +130,12 @@ class Inference(object):
             output.backward()
             self.optimizer.step()
             print 'iter: ', t, 'loss: ', output.item()
-            if t % 1000 == 0:
-                zx = self.var_params[0]
-                plt.plot(to_numpy(zx))
-                plt.show()
-        embed()
+            if t == 8000:
+                embed()
+        zx = self.var_params[0]
+        plt.plot(to_numpy(zx))
+        plt.savefig('learned_z.png')
+        return self.opt_params
 
 class MeanFieldVI(object):
     '''

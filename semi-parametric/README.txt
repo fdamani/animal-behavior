@@ -1,0 +1,91 @@
+3/27
+
+- add functions in learning dynamics.py 
+	- predict training loss
+	- predict validation loss
+- this should be integrated in inference.py optimization (e.g. printing these
+		losses as we go)
+
+
+	- cross-validation
+		- leave out 10% random samples
+			-keep latents for unobserved samples just ignore likelihood term for unobserved samples
+			- compute posterior then predict samples
+			- average across many different "random-folds".
+		- predict next session. train a model using past data using elbo then predict next session. repeat for every session then average RMSE.
+
+
+	- add cross-validation into current methods
+		- randomly leave out some percentage of the data
+			(dont compute likelihood for those data points)
+		- after training, predict missing y's using map estimate of z.
+			- alt: do MC approx of likelihood under a large number of samples from posterior. avg then if >.5 -> 1.
+	- add dict that specifies which model params we will compute gradients
+		w.r.t. use this dict to define optimized params as well.
+	- add joint optimization of model params (here its just the scale)
+		- show we can accurately predict this parameter.
+		- do this well: e.g. use diff learning rate if nec. 
+
+
+
+
+3/25
+	what i've done:
+		- train RNN on full set of features to predict y
+		- used hidden representation h(x) instead of x showed elbo is lower on training data.
+			- this doesn't make sense. in rnn case "data" x is high dimensional
+				- which means we are not comparing two models under the same data.
+					- compare after integrating out rnn parameters (see variationalRNN)
+					- OR for now, write code to predict missing entries in data.
+		- train new rnn on just x1, x2 not including other features
+		- show concat this h'(x) with summary stats gives better performance. 
+
+Gameplan:
+	- add validation data to model (e.g. leave out 10% of data)
+	- get VI working with original model.
+		- have synthetic validation plots
+			- show in simulation, we can properly recover all model parameters.
+				- beta, lamda, alpha, etc.
+	- extend alpha to a vector. does it allow for better predictions?
+		- do variational bayes on model parameters. 
+	- how to reason about relative magnitudes of loss vs regularization.
+		- look into questions ryan and jonathan were asking about this.
+
+
+
+	- figure out how to train rnn without overfitting
+		- how to train rnn by leaving out some samples.
+		- need validation data to measure performance.
+		- use LSTM variation. 
+
+
+
+
+
+
+
+
+- RNN works. problem is its slow
+- TODO: for now, train on small dataset. (500 samples).
+
+
+
+
+- fit GLM (linear dynamics prior with fixed scale) using VI with reparam trick. X
+- apply to real data. X
+- train RNN. (lets train this separately on x to y data.)
+	- generate data according to LearningDynamics model
+	- fit using RNN.
+		- 
+- fit RNN on input x_t to predict y_t.
+- concat RNN with features to predict.
+	- compare elbo.
+
+
+1. fit RNN on with input x_t and y_{t-1} and predict y_t
+2. fit RNN on input x_t and predict y_t. 
+	- learn representation H.
+3. fit GLM with H + features vs regular GLM 
+	- compare ELBO.
+4. VI no amortization
+5. VI + amortization

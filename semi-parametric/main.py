@@ -118,7 +118,6 @@ if __name__ == '__main__':
     # np.save(savedir+'/data/rw.npy', rw.detach().cpu().numpy())
     # print 'gpu usage: ', torch.cuda.memory_allocated(device) /1e9
     y_train, y_test = train_test_split(y, x)
-    
     x = torch.tensor(x, dtype=dtype, device=device)
     y_train = torch.tensor(y_train, dtype=dtype, device=device)
     y_test = torch.tensor(y_test, dtype=dtype, device=device)

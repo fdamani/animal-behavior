@@ -1,9 +1,61 @@
 2.26.19
-	- run simulation locally make sure we can accurately recover sparsity params.
-	- run on full dataset (with decent size learning rate) 
-	- run with multiple learning rates.
+TO DO:
+- run vector of alphas with no sparsity 
 
-	- use synthetic data to make sure we can properly recover these new parameters.
+
+
+
+- learn alpha vector
+	- write quick code to do this.
+	- estimate this quantity for ONE dataset.
+
+
+TODO:
+- edit reward plot to have multiple lines. X
+- add more writing to model section
+	- explaining things in more detail
+	- describe in abstract how this model
+	is different than ji hyuns
+- fix bootstrap figure. make 4 subplots
+stack vertically BIG font.
+	- switch to points and confidence
+	intervals +/- 1 SD.
+- make marginal likelihood figure
+	- comparing diffusion, learning, learning+sparsity across all rats
+	- have a table models x datasets
+		-bold the winner of each column.
+- write code to estimate an alpha vector
+	- do this for one dataset.
+	- with bootstrap.
+
+
+
+experiments running
+	- no sparsity across all datasets
+	- all parameters across all datasets.
+	- alpha vector for one dataset 
+		- are the parameter estimates interesting
+		- does the marginal likelihood improve?
+	- run diffusion model (set sparsity and 
+		learning to 0) across all rats.
+
+
+
+	- for one dataset
+		- alpha: 2 plots
+			- line plot of marginal likelihood across all rats
+			for single alpha vs vector of alphas
+			- for one dataset
+				- plot estimated alphas for each dimension
+				as a boxplot using a bootstrap.
+
+
+
+	- run simulation locally make sure we can accurately recover sparsity params. X
+	- run on full dataset (with decent size learning rate) X
+	- run with multiple learning rates. X
+
+	- use synthetic data to make sure we can properly recover these new parameters. X
 
 
 2.25.19
