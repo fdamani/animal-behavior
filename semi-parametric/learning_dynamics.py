@@ -212,6 +212,25 @@ class LearningDynamicsModel(object):
         test_probs = self.sigmoid(logits_test)
         return train_ll, test_ll, train_probs, test_probs
 
+    def sample_forward(self, y_train, y_test, test_inds, x, z, x_future, num_obs, num_future_steps):
+        '''
+            sample forward from last time point of z.
+        '''
+        z_future = []
+        y_future = []
+        for i in range(num_future_steps):
+            y_prev = y_train[-1] if y_train[-1][0] != -1 else y_test[-1]
+            z_i = self.sample_prior(z[-1], y_prev, x[-1])
+            y_i = self.sample_likelihood(x[i], z_i, num_obs)
+
+            z_future.append(z_i)
+            y_future.append(y_i)
+        
+        y_sampled_future = torch.t(torch.cat(y_future, dim=1))
+        z_future = torch.cat(z_future)
+
+        return y_sampled_future, z_future
+
 
 def print_memory():
     print("memory usage: ", (process.memory_info().rss)/(1e9))

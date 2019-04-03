@@ -24,7 +24,7 @@ import learning_dynamics
 from learning_dynamics import LearningDynamicsModel
 from evaluation import Evaluate
 import read_data
-from read_data import read_and_process, train_test_split
+from read_data import read_and_process, train_test_split, train_future_split
 process = psutil.Process(os.getpid())
 
 # set random seed
@@ -119,21 +119,27 @@ if __name__ == '__main__':
     # np.save(savedir+'/data/x.npy', x.detach().cpu().numpy())
     # np.save(savedir+'/data/rw.npy', rw.detach().cpu().numpy())
     # print 'gpu usage: ', torch.cuda.memory_allocated(device) /1e9
+    num_future_steps = 100
+    y, x, y_future, x_future = train_future_split(y, x, num_future_steps)
     y_train, y_test, test_inds = train_test_split(y, x, cat='single')
     x = torch.tensor(x, dtype=dtype, device=device)
     y_train = torch.tensor(y_train, dtype=dtype, device=device)
     y_test = torch.tensor(y_test, dtype=dtype, device=device)
     test_inds = torch.tensor(test_inds, dtype=torch.long, device=device)
+    y_future = torch.tensor(y_future, dtype=dtype, device=device)
+    x_future = torch.tensor(x_future, dtype=dtype, device=device)
     #data = [y_train, x]
-    data = [y_train, x, y_test, test_inds]
-    embed()
-
+    data = [y_train, x, y_test, test_inds, y_future, x_future]
     # declare model here
     model = LearningDynamicsModel(init_prior, transition_scale, dim=3)
-    sx = Inference(data, model, savedir='', num_obs=num_obs)
-    opt_params = sx.optimize()
-    data = [y_train, x, y_test, test_inds]
+    inference = Inference(data, model, savedir='', num_obs=num_obs, num_future_steps=num_future_steps)
+    opt_params = inference.optimize()
 
+    y_future, z_future, avg_future_marginal_lh = inference.ev.sample_future_trajectory(inference.var_params, num_future_steps)
+    if sim:
+        plt.plot(z_true[-num_future_steps:])
+    plt.plot(to_numpy(z_future))
+    #plt.show()
     # ev = Evaluate(data, model, savedir='', num_obs=num_obs)
     # train_ll, test_ll = ev.valid_loss()
     # then test!

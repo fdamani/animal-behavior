@@ -100,15 +100,19 @@ class Map(object):
 
 
 class Inference(object):
-    def __init__(self, data, model, savedir, num_obs):
+    def __init__(self, data, model, savedir, num_obs, num_future_steps):
         self.data = data
         self.dim = self.data[1].size(2)
         self.T = self.data[1].size(0)
 
         self.train_data = self.data[0:2]
+        self.y_future = self.data[4]
+        self.x_future = self.data[5]
+        self.num_future_steps = self.y_future.shape[0]
         self.model = model
         self.savedir = savedir
         self.num_obs = num_obs
+        self.num_future_steps = num_future_steps
 
         self.vi = MeanFieldVI(self.model, self.savedir)
         self.var_params = self.vi.init_var_params(self.T, self.dim)
@@ -118,7 +122,9 @@ class Inference(object):
         self.opt_params = self.var_params
         self.optimizer = torch.optim.Adam(self.opt_params, lr = lr)
 
-        self.ev = Evaluate(self.data, self.model, savedir='', num_obs=num_obs)
+        self.ev = Evaluate(self.data, self.model, savedir='', num_obs=self.num_obs)
+        self.num_test = self.data[2].shape[0]
+        self.num_train = self.data[0].shape[0] - self.num_test
 
     def optimize(self):
         #print 'gpu usage: ', torch.cuda.memory_allocated(device) /1e9
@@ -131,6 +137,7 @@ class Inference(object):
         for t in range(self.iters):
             # e-step
             output = -self.vi.forward(self.train_data, self.var_params)
+            avg_output = output.item() / float(self.num_train)
             outputs.append(output.item())
             self.optimizer.zero_grad()
             output.backward()
@@ -138,14 +145,18 @@ class Inference(object):
             #print 'iter: ', t, 'loss: ', output.item()
             train_ll, test_ll, train_accuracy, test_accuracy, train_probs, test_probs = \
                 self.ev.valid_loss(self.var_params)
-            if t % 500 == 0:
-                print 'iter: ', t, 'loss: %.1f ' % output.item(), '-train ll: %.1f' % \
+
+            y_future, z_future, avg_future_ll = self.ev.sample_future_trajectory(self.var_params, 
+                num_future_steps=self.num_future_steps)
+            if t % 250 == 0:
+                print 'iter: ', t, 'loss: %.1f ' % avg_output, '-train ll: %.1f' % \
                 -train_ll.item(), '-test ll: %.1f ' % -test_ll.item(), 'train acc: %.3f ' % train_accuracy.item(), \
-                'test acc: %.3f ' % test_accuracy.item()
+                'test acc: %.3f ' % test_accuracy.item(), '-future ll: %.1f' % -avg_future_ll.item()
 
         zx = self.var_params[0]
         plt.plot(to_numpy(zx))
-        plt.show()
+        #plt.show()
+
         #plt.savefig('learned_z.png')
         return self.opt_params
 
