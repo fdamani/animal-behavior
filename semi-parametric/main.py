@@ -57,7 +57,7 @@ if __name__ == '__main__':
                  'W080.csv', 'W081.csv', 'W082.csv', 'W083.csv', 'W088.csv', 'W089.csv', 'W094.csv']
     if sim:
         # T = 200 # 100
-        T = 300
+        T = 1000
         # time-series model
         # sim model parameters
         dim = 3
@@ -68,7 +68,7 @@ if __name__ == '__main__':
         log_alpha = math.log(1e-2)
         model = LearningDynamicsModel(init_prior, transition_scale, dim=3)
         #model = LogReg_LDS(init_prior=(0.0, 0.02), transition_scale=1e-3)
-        num_obs = 75
+        num_obs = 50
         y, x, z_true = model.sample(T=T, num_obs_samples=num_obs)
         y = y.detach().cpu().numpy()
         x = x.detach().cpu().numpy()
