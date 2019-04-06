@@ -60,7 +60,7 @@ if __name__ == '__main__':
         # sim model parameters
         dim = 3
         init_prior = ([0.0]*dim, [math.log(1.0)]*dim)
-        transition_scale = [math.log(.1)] * dim
+        transition_scale = [math.log(.1)]# * dim
         log_gamma = math.log(1e-0)
         beta = 10. # sigmoid(4.) = .9820
         log_alpha = math.log(1e-2)
@@ -108,7 +108,7 @@ if __name__ == '__main__':
         dim = x.shape[2]
         T = x.shape[0]
         init_prior = ([0.0]*dim, [math.log(1.0)]*dim)
-        transition_scale = [math.log(1.0)] * dim  
+        transition_scale = [math.log(1.0)] #* dim  
     
     # split data into train/test.
 
@@ -119,9 +119,11 @@ if __name__ == '__main__':
     # np.save(savedir+'/data/x.npy', x.detach().cpu().numpy())
     # np.save(savedir+'/data/rw.npy', rw.detach().cpu().numpy())
     # print 'gpu usage: ', torch.cuda.memory_allocated(device) /1e9
-    num_future_steps = 100
+    num_future_steps = 1
+    category_tt_split = 'single'
+    num_mc_samples = 10
     y, x, y_future, x_future = train_future_split(y, x, num_future_steps)
-    y_train, y_test, test_inds = train_test_split(y, x, cat='single')
+    y_train, y_test, test_inds = train_test_split(y, x, cat=category_tt_split)
     x = torch.tensor(x, dtype=dtype, device=device)
     y_train = torch.tensor(y_train, dtype=dtype, device=device)
     y_test = torch.tensor(y_test, dtype=dtype, device=device)
@@ -132,13 +134,14 @@ if __name__ == '__main__':
     data = [y_train, x, y_test, test_inds, y_future, x_future]
     # declare model here
     model = LearningDynamicsModel(init_prior, transition_scale, dim=3)
-    inference = Inference(data, model, savedir='', num_obs=num_obs, num_future_steps=num_future_steps)
+    inference = Inference(data, model, savedir='', num_obs=num_obs, num_future_steps=num_future_steps, num_mc_samples=num_mc_samples)
     opt_params = inference.optimize()
 
     y_future, z_future, avg_future_marginal_lh = inference.ev.sample_future_trajectory(inference.var_params, num_future_steps)
     if sim:
         plt.plot(z_true[-num_future_steps:])
     plt.plot(to_numpy(z_future))
+    plt.show()
     #plt.show()
     # ev = Evaluate(data, model, savedir='', num_obs=num_obs)
     # train_ll, test_ll = ev.valid_loss()

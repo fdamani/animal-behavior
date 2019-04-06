@@ -61,11 +61,11 @@ class LearningDynamicsModel(object):
                  grad=False):
         # initialize parameters
 
-        isGrad=False
+        isGrad=True
         self.init_latent_loc = torch.tensor([init_prior[0]], 
-            requires_grad=isGrad, device=device)
+            requires_grad=False, device=device)
         self.init_latent_log_scale = torch.tensor([init_prior[1]], 
-            requires_grad=isGrad, device=device)
+            requires_grad=False, device=device)
         self.transition_log_scale = torch.tensor([transition_log_scale], 
             requires_grad=isGrad, device=device)
         self.sigmoid = nn.Sigmoid()

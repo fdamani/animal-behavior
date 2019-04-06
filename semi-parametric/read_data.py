@@ -129,6 +129,16 @@ def featurize_x(x, y, rw, true_side):
 	return design_mat
 
 
+def train_future_split(y, x, num_future_time_steps):
+	'''
+		hold out last N trials for predicting future trajectory.
+	'''
+	y_future = y[-num_future_time_steps:]
+	x_future = x[-num_future_time_steps:]
+	return y[:-num_future_time_steps], x[:-num_future_time_steps], \
+		y_future, x_future
+
+
 def train_test_split(y, x, cat):
 	'''
 	y: T x obs
@@ -146,7 +156,7 @@ def train_test_split(y, x, cat):
 		- ask to predict end of each session +/- window.
 	'''
 	if cat == 'single':
-		percent_random_inds = .8
+		percent_random_inds = .2
 		T = y.shape[0]
 		num_obs = y.shape[1]
 		dim = x.shape[2]

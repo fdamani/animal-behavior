@@ -1,3 +1,81 @@
+4/6
+
+- compute posterior and standard dev param using VI. (show values recover synthetic data)
+- write bootstrap code and get this to work. 
+
+
+4/5
+- add learning component back into model (start w/ no regularization)
+- show we can get posterior credible intervals for alpha
+- do all of the below just for gaussian noise term. show we can estimate this well across
+datasets.
+	- simplest/fastest approach
+		- optimize elbo to get converged results
+		- compute laplace approx of model params and create plots with the diagonal of hessian
+		showing uncertainty measurements.
+	- repeat this for 10 datasets and plot these credible intervals.
+- repeat this except with regularization parameters
+	- can you recover simulated estimates? have plots showing results from synthetic data.
+	- repeat for multiple datasets
+- extend to vector of alphas
+
+- for each of these plot
+	- posterior credible intervals using post-hoc laplace approximation.
+	- validation performance (held out, held out blocks, and next session)
+		- compare posterior predictives. remember its not average of logs its log of averages
+			- posterior predictive: p(y|x) = expectation_posterior[likelihood] -> MC estimate is fine make sure you average many samples.
+				***make sure you're using the likelihood, not log likelihood.
+
+
+
+- how to get uncertainty estimates of model parameters
+	- get proper uncertainty - approx inference or bootstrap
+	- clever ways of training on different subsets of the data and show its consistent
+
+
+
+- for regularization story
+	- try with only l2 regularization first.
+
+
+4/3
+in the morning:
+	- add learning component
+		- show learning component and learning+regularization helps with valid loss
+	- fix code to estimate model parameters as well. show we can do this well.
+	
+
+4/2
+- validation loss
+	- leave 10% random samples show we can predict those samples with inferred latents.
+	- currently outputting train/test marginal likelihoods () and accuracy measures.
+		- reporting test ll should be enough to compare against models.
+	- band validation: for any index picked remove a chunk. (5-10 samples)
+	- predict last session
+		- we have future trajectories
+		- not exactly useful if we dont have true latents (dont worry about this yet)
+
+		- compute marginal ll on new trajectory.
+			- repeat this procedure with multiple "folds". 
+		
+		- plot reward dynamics vs true (also create these plots for whole trajectory)
+	
+
+
+TODO:
+- plot reward dynamics vs true (also create these plots for whole trajectory)
+
+
+adding to prior
+	- add back learning component + regularization
+	- show data simulated according to regularization can be recovered by regularization approach
+		- e.g. lowest test loss is for model with regularization as opposed to without. (do this with set model params)
+	- if prev step works, show we can accurately estimate all model parameters (and add new code to decide
+		what params to estimate and how that's done)
+	- once this is done, create qualitative eval figures that show how trajectories are different
+		under regularization vs no regularization. show this in the context of all eval metrics above.
+
+
 3/27
 
 - add functions in learning dynamics.py 
