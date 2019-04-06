@@ -5,8 +5,6 @@ import os
 import numpy as np
 import math
 import matplotlib
-#matplotlib.use('Agg')
-import matplotlib.pyplot as plt
 from IPython import display, embed
 import torch
 import torch.nn as nn
@@ -28,6 +26,9 @@ torch.manual_seed(7)
 np.random.seed(7)
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 dtype = torch.float32
+if torch.cuda.is_available():
+    matplotlib.use('Agg')
+import matplotlib.pyplot as plt
 
 global_params = []
 
@@ -113,13 +114,13 @@ class Inference(object):
         self.savedir = savedir
         self.num_obs = num_obs
         self.num_future_steps = num_future_steps
-        self.num_mc_samples = 10
+        self.num_mc_samples = 1
 
         self.vi = MeanFieldVI(self.model, self.savedir, self.num_mc_samples)
         self.var_params = self.vi.init_var_params(self.T, self.dim)
 
-        self.iters = 10000
-        lr = 1e-2
+        self.iters = 100000
+        lr = 1e-3
         self.opt_params = [self.var_params[0], self.var_params[1], self.model.transition_log_scale]
         self.optimizer = torch.optim.Adam(self.opt_params, lr = lr)
         embed()
@@ -145,19 +146,19 @@ class Inference(object):
             output.backward()
             self.optimizer.step()
             #print 'iter: ', t, 'loss: ', output.item()
-            train_ll, test_ll, train_accuracy, test_accuracy, train_probs, test_probs = \
-                self.ev.valid_loss(self.var_params)
+            # train_ll, test_ll, train_accuracy, test_accuracy, train_probs, test_probs = \
+            #     self.ev.valid_loss(self.var_params)
 
-            y_future, z_future, avg_future_ll = self.ev.sample_future_trajectory(self.var_params, 
-                num_future_steps=self.num_future_steps)
-            if t % 250 == 0:
-                print 'iter: ', t, 'loss: %.2f ' % avg_output, '-train ll: %.2f' % \
-                -train_ll.item(), '-test ll: %.2f ' % -test_ll.item(), 'train acc: %.3f ' % train_accuracy.item(), \
-                'test acc: %.3f ' % test_accuracy.item(), '-future ll: %.1f' % -avg_future_ll.item(), \
-                'scale param: ', np.exp(self.opt_params[-1].item())
-            if t % 5000 == 0:
-                embed()
+            # y_future, z_future, avg_future_ll = self.ev.sample_future_trajectory(self.var_params, 
+            #     num_future_steps=self.num_future_steps)
+            if t % 1000 == 0:
+                # print 'iter: ', t, 'loss: %.2f ' % avg_output, '-train ll: %.2f' % \
+                # -train_ll.item(), '-test ll: %.2f ' % -test_ll.item(), 'train acc: %.3f ' % train_accuracy.item(), \
+                # 'test acc: %.3f ' % test_accuracy.item(), '-future ll: %.1f' % -avg_future_ll.item(), \
+                # 'scale param: ', np.exp(self.opt_params[-1].item())
 
+                print 'iter: ', t, 'loss: %.2f ' % avg_output, 'scale param: ', np.exp(self.opt_params[-1].item()) 
+            
         zx = self.var_params[0]
         plt.plot(to_numpy(zx))
         #plt.show()

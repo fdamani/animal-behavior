@@ -5,8 +5,6 @@ import os
 import numpy as np
 import math
 import matplotlib
-#matplotlib.use('Agg')
-import matplotlib.pyplot as plt
 from IPython import display, embed
 import torch
 import torch.nn as nn
@@ -27,6 +25,9 @@ process = psutil.Process(os.getpid())
 torch.manual_seed(10)
 np.random.seed(7)
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+if torch.cuda.is_available():
+    matplotlib.use('Agg')
+import matplotlib.pyplot as plt
 # dtype = torch.cuda.FloatTensor if torch.cuda.is_available() else torch.float
 dtype = torch.float32
 

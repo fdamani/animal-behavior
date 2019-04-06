@@ -9,8 +9,6 @@ import os
 import numpy as np
 import math
 import matplotlib
-#matplotlib.use('Agg')
-import matplotlib.pyplot as plt
 from IPython import display, embed
 import torch
 import torch.nn as nn
@@ -28,6 +26,9 @@ np.random.seed(7)
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 dtype = torch.float32
+if torch.cuda.is_available():
+    matplotlib.use('Agg')
+import matplotlib.pyplot as plt
 
 import torch.nn as nn
 

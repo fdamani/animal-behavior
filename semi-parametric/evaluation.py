@@ -5,8 +5,6 @@ import os
 import numpy as np
 import math
 import matplotlib
-#matplotlib.use('Agg')
-import matplotlib.pyplot as plt
 from IPython import display, embed
 import torch
 import torch.nn as nn
@@ -25,6 +23,10 @@ process = psutil.Process(os.getpid())
 torch.manual_seed(7)
 np.random.seed(7)
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+if torch.cuda.is_available():
+    matplotlib.use('Agg')
+import matplotlib.pyplot as plt
 dtype = torch.float32
 
 global_params = []
@@ -123,11 +125,11 @@ class Evaluate(object):
         train_ll, test_ll, train_probs, test_probs = \
             self.model.log_likelihood_test(y_train, y_test, test_inds, x, z)
         train_inds = self.return_train_ind(y_train)
-        train_preds = torch.tensor(train_probs.detach() > .5, dtype=torch.float)
-        train_accuracy = torch.mean(torch.tensor(train_preds == y_train[train_inds], dtype=torch.float))
+        train_preds = torch.tensor(train_probs.detach() > .5, device=device, dtype=torch.float)
+        train_accuracy = torch.mean(torch.tensor(train_preds == y_train[train_inds], device=device, dtype=torch.float))
         
-        test_preds = torch.tensor(test_probs.detach() > .5, dtype=torch.float)
-        test_accuracy = torch.mean(torch.tensor(test_preds == y_test, dtype=torch.float))
+        test_preds = torch.tensor(test_probs.detach() > .5, device=device, dtype=torch.float)
+        test_accuracy = torch.mean(torch.tensor(test_preds == y_test, device=device, dtype=torch.float))
 
         avg_train_ll = train_ll.detach() / float(num_train)
         avg_test_ll = test_ll.detach() / float(num_test)
