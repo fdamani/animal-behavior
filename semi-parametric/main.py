@@ -57,26 +57,27 @@ if __name__ == '__main__':
                  'W080.csv', 'W081.csv', 'W082.csv', 'W083.csv', 'W088.csv', 'W089.csv', 'W094.csv']
     if sim:
         # T = 200 # 100
-        T = 1000
+        T = 10000
         # time-series model
         # sim model parameters
         dim = 3
         init_prior = ([0.0]*dim, [math.log(1.0)]*dim)
-        transition_scale = [math.log(.1)]# * dim
+        transition_scale = [math.log(1e-2)]# * dim
         log_gamma = math.log(1e-0)
         beta = 10. # sigmoid(4.) = .9820
         log_alpha = math.log(1e-2)
         model = LearningDynamicsModel(init_prior, transition_scale, dim=3)
         #model = LogReg_LDS(init_prior=(0.0, 0.02), transition_scale=1e-3)
-        num_obs = 50
+        num_obs = 1
         y, x, z_true = model.sample(T=T, num_obs_samples=num_obs)
         y = y.detach().cpu().numpy()
         x = x.detach().cpu().numpy()
         z_true = z_true.detach().cpu().numpy()
 
+        plt.cla()
         plt.plot(z_true)
         #plt.show()
-        #plt.savefig('sim_z.png')
+        plt.savefig('sim_z.png')
         # embed()
         # model params
     else:
@@ -135,7 +136,8 @@ if __name__ == '__main__':
     #data = [y_train, x]
     data = [y_train, x, y_test, test_inds, y_future, x_future]
     # declare model here
-    model = LearningDynamicsModel(init_prior, transition_scale, dim=3)
+    init_transition_log_scale = [math.log(1e-2)]# * dim
+    model = LearningDynamicsModel(init_prior, init_transition_log_scale, dim=3)
     inference = Inference(data, model, savedir='', num_obs=num_obs, num_future_steps=num_future_steps, num_mc_samples=num_mc_samples)
     opt_params = inference.optimize()
 

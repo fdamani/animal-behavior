@@ -1,3 +1,10 @@
+4/7
+	- optimize variational parameters and model parameters in an iterative optimization framework
+		- condition on reasonable model parameters and update variational params. 
+		- condition on variatioanl params and update model parameters.
+		- adam seems fine for variational params. check to see if adam converges to good model parameter values
+			in iterative framework or do we need to use SGD.
+
 4/6
 
 - compute posterior and standard dev param using VI. (show values recover synthetic data)
