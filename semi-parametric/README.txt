@@ -1,9 +1,18 @@
 4/7
+	- initialize VI with map estimate. it HELPS!
+	- then do joint optimization of vi and model params using SGD (try with momentum)
+	- see how brittle the method is to initialization. e.g. for map estimate, condition on wrong
+		model params. does vi still convergence reasonably well?
+	- once we have this working well, add additional model params.
+
+
+
 	- optimize variational parameters and model parameters in an iterative optimization framework
 		- condition on reasonable model parameters and update variational params. 
 		- condition on variatioanl params and update model parameters.
 		- adam seems fine for variational params. check to see if adam converges to good model parameter values
 			in iterative framework or do we need to use SGD.
+	- open question: how to do this on a single trial level. 
 
 4/6
 

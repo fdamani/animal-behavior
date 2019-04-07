@@ -101,7 +101,7 @@ class Map(object):
 
 
 class Inference(object):
-    def __init__(self, data, model, savedir, num_obs, num_future_steps, num_mc_samples):
+    def __init__(self, data, model, savedir, num_obs, num_future_steps, num_mc_samples, z_true=None):
         self.data = data
         self.dim = self.data[1].size(2)
         self.T = self.data[1].size(0)
@@ -117,21 +117,46 @@ class Inference(object):
         self.num_mc_samples = 1
 
         self.vi = MeanFieldVI(self.model, self.savedir, self.num_mc_samples)
-        self.var_params = self.vi.init_var_params(self.T, self.dim)
+        self.var_params = self.vi.init_var_params(self.T, self.dim, z_true[0:-1])
+        #embed()
+        #self.var_params[0] = z_true
 
         self.iters = 100000
-        lr = 1e-4
-        self.opt_params = [self.var_params[0], self.var_params[1]]#, self.model.transition_log_scale]
+        #lr = 1e-4
+        self.opt_params = [self.var_params[0], self.var_params[1], self.model.transition_log_scale]
 
         #self.opt_params = [self.var_params[0], self.var_params[1]]
-        
-        self.optimizer = torch.optim.Adam(self.opt_params, lr = lr)
+        self.optimizer =  torch.optim.SGD(self.opt_params, lr=1e-1)
+        #self.var_optimizer = torch.optim.Adam(self.opt_params, lr = lr)
+        #self.model_param_optimizer = torch.optim.SGD(self.opt_params, lr = lr)
 
         self.ev = Evaluate(self.data, self.model, savedir='', num_obs=self.num_obs)
         self.num_test = self.data[2].shape[0]
         self.num_train = self.data[0].shape[0] - self.num_test
+    def unpack_data(self, data):
+        y = data[0]
+        x = data[1]
+        return y, x
+    def map_estimate(self):
+        z = torch.tensor(torch.rand(self.T, self.dim, device=device), requires_grad=True, device=device)
+        y, x = self.unpack_data(self.data)
+        self.map_iters = 10000
+        self.opt_params = [z]
+        self.map_optimizer =  torch.optim.Adam(self.opt_params, lr=1e-1)
+        for t in range(self.map_iters):
+            output = -self.model.log_joint(y, x, z)
+            self.map_optimizer.zero_grad()
+            output.backward()
+            self.map_optimizer.step()
+            print output.item()
+            if t % 1000 == 0:
+                plt.cla()
+                plt.plot(to_numpy(z))
+                plt.savefig('curr_map_z.png')
+        return self.opt_params
 
     def optimize(self):
+        self.map_estimate()
         #print 'gpu usage: ', torch.cuda.memory_allocated(device) /1e9
         #print 'cpu usage: ', print_memory()
         print 'optimizing...'
@@ -139,7 +164,7 @@ class Inference(object):
         #outfile = open(self.savedir+'/params.txt', 'wb')
 
         outputs = []
-
+        clip = 5.
         #var_clip = 5.
         #model_param_clip = 500.
         for t in range(self.iters):
@@ -151,17 +176,15 @@ class Inference(object):
             output.backward()
             # torch.mean(torch.abs(self.var_params[0].grad))
             #print torch.abs(torch.mean(self.model.transition_log_scale.grad
-            #torch.nn.utils.clip_grad_norm(self.opt_params,var_clip)
+            torch.nn.utils.clip_grad_norm(self.opt_params,clip)
 
             #self.model.transition_log_scale.grad = 100*self.model.transition_log_scale.grad
             #self.model.transition_log_scale.grad = .1*self.model.transition_log_scale.grad
             #if t % 500 == 0:
             #    print torch.mean(torch.abs(self.var_params[0].grad)).item(), self.model.transition_log_scale.grad.item()
             #torch.nn.utils.clip_grad_norm(self.opt_params,var_clip)
-            #embed()
             #self.model.transition_log_scale.grad = 100000 * self.model.transition_log_scale.grad
             #self.var_params[0].grad = 100 * self.var_params[0].grad
-            #embed()
             self.optimizer.step()
             #print np.exp(self.opt_params[-1].item()) 
             #print 'iter: ', t, 'loss: ', output.item()
@@ -176,13 +199,15 @@ class Inference(object):
                 # 'test acc: %.3f ' % test_accuracy.item(), '-future ll: %.1f' % -avg_future_ll.item(), \
                 # 'scale param: ', np.exp(self.opt_params[-1].item())
 
-                print 'iter: ', t, 'loss: %.2f ' % output.item()#, 'scale param: ', np.exp(self.opt_params[-1].item()) 
+                print 'iter: ', t, 'loss: %.2f ' % output.item(), 'scale param: ', np.exp(self.opt_params[-1].item()) 
             
             if t % 1000 == 0:
                 zx = self.var_params[0]
                 plt.cla()
                 plt.plot(to_numpy(zx))
                 plt.savefig('curr_est_z.png')
+            if t % 5000 == 0:
+                embed()
         zx = self.var_params[0]
         plt.plot(to_numpy(zx))
         #plt.show()
@@ -199,8 +224,9 @@ class MeanFieldVI(object):
         self.savedir = savedir
         self.num_samples = num_samples
 
-    def init_var_params(self, T, dim):
-        mean = torch.ones(T, dim, requires_grad=True, device=device)
+    def init_var_params(self, T, dim, init_mean=None):
+        mean = torch.tensor(init_mean, device=device, requires_grad=True)
+        #mean = torch.tensor(5*torch.rand(T, dim, device=device), requires_grad=True, device=device)
         log_scale = torch.tensor(-5 * torch.ones(T, dim), requires_grad=True, device=device)
         return (mean, log_scale)
 

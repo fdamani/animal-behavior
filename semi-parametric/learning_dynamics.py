@@ -56,13 +56,12 @@ class RNN(nn.Module):
 
 class LearningDynamicsModel(object):
     def __init__(self,
-                 init_prior=(0.0, 1.0),
-                 transition_log_scale=math.log(0.01),
-                 dim=3, 
-                 grad=False):
+                 init_prior,
+                 transition_log_scale,
+                 dim):
         # initialize parameters
 
-        isGrad=False
+        isGrad=True
         self.init_latent_loc = torch.tensor([init_prior[0]], 
             requires_grad=False, device=device)
         self.init_latent_log_scale = torch.tensor([init_prior[1]], 
@@ -147,7 +146,6 @@ class LearningDynamicsModel(object):
         logprob += self.log_init_prior(z[0][None])
         logprob += self.log_prior_vec(z, y, x)
         logprob += self.log_likelihood_vec(y, x, z)
-
         return logprob
 
     def log_joint_batch(self, y, x, z):
