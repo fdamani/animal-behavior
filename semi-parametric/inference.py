@@ -140,7 +140,7 @@ class Inference(object):
     def map_estimate(self):
         z = torch.tensor(torch.rand(self.T, self.dim, device=device), requires_grad=True, device=device)
         y, x = self.unpack_data(self.data)
-        self.map_iters = 10000
+        self.map_iters = 2000
         self.opt_params = [z]
         self.map_optimizer =  torch.optim.Adam(self.opt_params, lr=1e-1)
         for t in range(self.map_iters):
@@ -148,35 +148,41 @@ class Inference(object):
             self.map_optimizer.zero_grad()
             output.backward()
             self.map_optimizer.step()
-            print output.item()
+            if t % 250 == 0:
+                print output.item()
             if t % 1000 == 0:
                 plt.cla()
                 plt.plot(to_numpy(z))
                 plt.savefig('curr_map_z.png')
-        return self.opt_params
+        return self.opt_params[0].clone().detach()
 
     def optimize(self):
-        self.map_estimate()
-        #print 'gpu usage: ', torch.cuda.memory_allocated(device) /1e9
-        #print 'cpu usage: ', print_memory()
-        print 'optimizing...'
-        #loss_l, weights_l, mean_l, scale_l, model_params = [], [], [], [], [], []
-        #outfile = open(self.savedir+'/params.txt', 'wb')
+        init_z = self.map_estimate()
+        self.opt_params = [init_z, self.var_params[1], self.model.transition_log_scale]
+        self.optimizer =  torch.optim.SGD(self.opt_params, lr=1e-1)
+        #self.optimizer = torch.optim.Adagrad(self.opt_params, lr=1)#, momentum=0.9)
+        #self.optimizer = torch.optim.Adam(self.opt_params, lr=1e-3)
 
+        print 'optimizing...'
         outputs = []
         clip = 5.
         #var_clip = 5.
         #model_param_clip = 500.
         for t in range(self.iters):
             # e-step
-            output = -self.vi.forward(self.train_data, self.var_params) / float(self.num_train)
+            output = -self.vi.forward(self.train_data, self.var_params, t) / float(self.num_train)
             #avg_output = output.item() / float(self.num_train)
             outputs.append(output.item())
             self.optimizer.zero_grad()
             output.backward()
             # torch.mean(torch.abs(self.var_params[0].grad))
             #print torch.abs(torch.mean(self.model.transition_log_scale.grad
-            torch.nn.utils.clip_grad_norm(self.opt_params,clip)
+            
+
+
+            #torch.nn.utils.clip_grad_norm(self.opt_params,clip)
+
+            
 
             #self.model.transition_log_scale.grad = 100*self.model.transition_log_scale.grad
             #self.model.transition_log_scale.grad = .1*self.model.transition_log_scale.grad
@@ -206,7 +212,7 @@ class Inference(object):
                 plt.cla()
                 plt.plot(to_numpy(zx))
                 plt.savefig('curr_est_z.png')
-            if t % 5000 == 0:
+            if t % 20000 == 0:
                 embed()
         zx = self.var_params[0]
         plt.plot(to_numpy(zx))
@@ -238,7 +244,7 @@ class MeanFieldVI(object):
         x = data[1]
         return y, x
 
-    def forward(self, data, var_params):
+    def forward(self, data, var_params, itr):
         '''
             useful for analytic kl  kl = torch.distributions.kl.kl_divergence(z_dist, self.prior).sum(-1)
         '''
@@ -249,10 +255,11 @@ class MeanFieldVI(object):
         #scale_tril = cov.tril()
         #var_dist = MultivariateNormal(loc, scale_tril=scale_tril)
         samples = var_dist.rsample(torch.Size((self.num_samples,)))
-        data_terms = torch.empty(self.num_samples, device=device)
-        for i in range(len(samples)):
-            data_terms[i] = self.model.log_joint(y, x, samples[i])
-        data_term = torch.mean(data_terms)
+        data_term = self.model.log_joint(y, x, samples[0])
+        # data_terms = torch.empty(self.num_samples, device=device)
+        # for i in range(len(samples)):
+        #     data_terms[i] = self.model.log_joint(y, x, samples[i])
+        # data_term = torch.mean(data_terms)
         entropy = torch.sum(var_dist.entropy())
         return (data_term + entropy)
 

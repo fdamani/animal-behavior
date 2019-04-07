@@ -1,6 +1,22 @@
 4/7
-	- initialize VI with map estimate. it HELPS!
-	- then do joint optimization of vi and model params using SGD (try with momentum)
+	- implement bootstrap approach
+		- sgd converges to correct mle estimate immediately then drifts away as loss goes down.
+			- figure out what part of loss is making it go down. **entropy is part of it. 
+				- anneal entropy? too strong?
+			- after 10k iters and theta is at 0.046, try reducing uncertainty of variational
+				params and reevaluate loss. where does it go? look at the two terms in inference
+				see how they trade off.
+		- do we notice same issues with other params like alpha?
+
+
+
+
+
+
+
+
+	X - initialize VI with map estimate. it HELPS!
+	X - then do joint optimization of vi and model params using SGD (try with momentum)
 	- see how brittle the method is to initialization. e.g. for map estimate, condition on wrong
 		model params. does vi still convergence reasonably well?
 	- once we have this working well, add additional model params.
