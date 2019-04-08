@@ -1,5 +1,25 @@
 4/8
-	- 
+	- what is a data regime where we are confident that it should work?
+		- lots of time points and observations.
+	- if i initialize phi_mu to true then just optimize theta
+		- theta goes to the correct answer. this finding is robust to
+		theta initialization (several orders of magnitude bigger or smaller
+		it doesnt matter converges very quickly)
+		- should i just find a really good map estimate?
+
+
+	- map is too much because prior is so strong.
+
+	- if we condition on true z and reasonable scale, can we 
+		optimize theta?
+
+
+
+	- goal: show that we can accurately estimate theta (at convergence)
+		- try alternating optimization of phi and theta
+		- different optimizers--adagrad, rmsprop.
+	- bootstrap estimates (create plots just for sigma--show confidence intervals as
+		a function of data pts)
 
 4/7
 	- implement bootstrap approach
