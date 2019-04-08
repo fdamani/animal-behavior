@@ -119,7 +119,7 @@ class Inference(object):
         self.vi = MeanFieldVI(self.model, self.savedir, self.num_mc_samples)
         
 
-        init = 'true' # 'true'
+        init = 'map' # 'true'
         if init == 'map':
             init_z = self.map_estimate()
             self.var_params = self.vi.init_var_params(self.T, self.dim, init_z)
@@ -127,7 +127,7 @@ class Inference(object):
             self.var_params = self.vi.init_var_params(self.T, self.dim, z_true[0:-1])
         else:
             print 'specify valid init option.'
-        self.iters = 100000
+        self.iters = 2000000
         #lr = 1e-4
         self.opt_params = [self.var_params[0], self.var_params[1], self.model.transition_log_scale]
 
@@ -145,16 +145,16 @@ class Inference(object):
         # initialize to all ones = smooth.
         z = torch.tensor(torch.ones(self.T, self.dim, device=device), requires_grad=True, device=device)
         y, x = self.unpack_data(self.data)
-        self.map_iters = 20000
+        self.map_iters = 10000
         self.opt_params = [z]
-        self.map_optimizer =  torch.optim.Adam(self.opt_params, lr=1e-3)
+        self.map_optimizer =  torch.optim.Adam(self.opt_params, lr=1e-2)
         for t in range(self.map_iters):
             output = -self.model.log_joint(y, x, z)
             self.map_optimizer.zero_grad()
             output.backward()
             self.map_optimizer.step()
             if t % 250 == 0:
-                print output.item()
+                print t, output.item()
             if t % 1000 == 0:
                 plt.cla()
                 plt.plot(to_numpy(z))
@@ -162,19 +162,21 @@ class Inference(object):
         return self.opt_params[0].clone().detach()
 
 
-    def optimizeOLD(self):
+    def optimize(self):
         total_iters = 100
         for i in range(total_iters):
             self.optimize_model_params()
             self.optimize_var_params()
+            if i % 10 == 0:
+                embed()
             #self.optimize_model_params()
 
     def optimize_model_params(self):
         print 'optimizing model params...'
         self.opt_params = [self.model.transition_log_scale]
         lr = 1e-1
-        self.iters = 20000
-        self.model_param_optimizer = torch.optim.SGD(self.opt_params, lr = lr)
+        self.iters = 3000
+        self.model_param_optimizer = torch.optim.Adam(self.opt_params, lr=1e-1)#, momentum=.9)
         outputs = []
 
         for t in range(self.iters):
@@ -190,12 +192,12 @@ class Inference(object):
 
     def optimize_var_params(self):
         self.opt_params = [self.var_params[0], self.var_params[1]]
-        self.optimizer =  torch.optim.Adam(self.opt_params, lr=1e-1)
+        self.optimizer =  torch.optim.Adam(self.opt_params, lr=1e-1)#, momentum=.9)
 
         print 'optimizing...'
         outputs = []
         clip = 5.
-        var_iters = 10000
+        var_iters = 3000
         #var_clip = 5.
         #model_param_clip = 500.
         for t in range(var_iters):
@@ -219,15 +221,13 @@ class Inference(object):
                 plt.cla()
                 plt.plot(to_numpy(zx))
                 plt.savefig('curr_est_z.png')
-            if t % 10000 == 0:
-                embed()
         zx = self.var_params[0]
         plt.plot(to_numpy(zx))
 
-    def optimize(self):
+    def optimizeOLD(self):
         #init_z = self.map_estimate()
         self.opt_params = [self.var_params[0], self.var_params[1], self.model.transition_log_scale]
-        self.optimizer =  torch.optim.SGD(self.opt_params, lr=1e-2)
+        self.optimizer =  torch.optim.SGD(self.opt_params, lr=5e-2, momentum = .9)
         #self.optimizer = torch.optim.Adagrad(self.opt_params, lr=1e-2, momentum=0.9)
         #self.optimizer = torch.optim.Adam(self.opt_params, lr=1e-3)
 
@@ -245,12 +245,10 @@ class Inference(object):
             output.backward()
             # torch.mean(torch.abs(self.var_params[0].grad))
             #print torch.abs(torch.mean(self.model.transition_log_scale.grad
-            
-
-
+            # print torch.mean(torch.abs(self.var_params[0].grad)).item(), \
+            #       torch.mean(torch.abs(self.var_params[1].grad)).item(), \
+            #       torch.abs(self.model.transition_log_scale.grad).item()
             torch.nn.utils.clip_grad_norm(self.opt_params,clip)
-
-            
 
             #self.model.transition_log_scale.grad = 100*self.model.transition_log_scale.grad
             #self.model.transition_log_scale.grad = .1*self.model.transition_log_scale.grad
@@ -280,7 +278,7 @@ class Inference(object):
                 plt.cla()
                 plt.plot(to_numpy(zx))
                 plt.savefig('curr_est_z.png')
-            if t % 20000 == 0:
+            if t % 50000 == 0:
                 embed()
         zx = self.var_params[0]
         plt.plot(to_numpy(zx))
