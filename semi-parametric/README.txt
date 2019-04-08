@@ -1,4 +1,34 @@
 4/8
+
+- two experiments:
+	- for single theta, generate 20 trajectory y's
+		- fit the elbo to each of the 20
+		- plot the estimated sigma's across 20 trajectories. 
+	- bootstrap
+		- generate data. fit one model
+		- given theta hat, generate 20 bootstrapped datasets
+		- fit bootstrapped datasets
+		- estimate variance of theta hats from 1:B
+		- bias correction. 
+
+
+
+
+
+
+
+
+
+- try same scale for gradients of model parameters and gradients of vi params
+	- whichever one is smaller multiple by a param to make it bigger.
+- try sgd with momentum.
+- how to get a better map fit?
+
+
+
+
+
+
 	- what is a data regime where we are confident that it should work?
 		- lots of time points and observations.
 	- if i initialize phi_mu to true then just optimize theta
