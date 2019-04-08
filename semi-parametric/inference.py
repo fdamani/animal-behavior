@@ -119,7 +119,7 @@ class Inference(object):
         self.vi = MeanFieldVI(self.model, self.savedir, self.num_mc_samples)
         
 
-        init = 'map' # 'true'
+        init = 'true' # 'true'
         if init == 'map':
             init_z = self.map_estimate()
             self.var_params = self.vi.init_var_params(self.T, self.dim, init_z)
@@ -145,9 +145,9 @@ class Inference(object):
         # initialize to all ones = smooth.
         z = torch.tensor(torch.ones(self.T, self.dim, device=device), requires_grad=True, device=device)
         y, x = self.unpack_data(self.data)
-        self.map_iters = 5000
+        self.map_iters = 20000
         self.opt_params = [z]
-        self.map_optimizer =  torch.optim.Adam(self.opt_params, lr=1e-2)
+        self.map_optimizer =  torch.optim.Adam(self.opt_params, lr=1e-3)
         for t in range(self.map_iters):
             output = -self.model.log_joint(y, x, z)
             self.map_optimizer.zero_grad()
@@ -162,7 +162,7 @@ class Inference(object):
         return self.opt_params[0].clone().detach()
 
 
-    def optimize(self):
+    def optimizeOLD(self):
         total_iters = 100
         for i in range(total_iters):
             self.optimize_model_params()
@@ -172,7 +172,7 @@ class Inference(object):
     def optimize_model_params(self):
         print 'optimizing model params...'
         self.opt_params = [self.model.transition_log_scale]
-        lr = 1e-3
+        lr = 1e-1
         self.iters = 20000
         self.model_param_optimizer = torch.optim.SGD(self.opt_params, lr = lr)
         outputs = []
@@ -224,11 +224,11 @@ class Inference(object):
         zx = self.var_params[0]
         plt.plot(to_numpy(zx))
 
-    def optimizeOLD(self):
+    def optimize(self):
         #init_z = self.map_estimate()
         self.opt_params = [self.var_params[0], self.var_params[1], self.model.transition_log_scale]
-        #self.optimizer =  torch.optim.Adam(self.opt_params, lr=1e-3)
-        self.optimizer = torch.optim.Adagrad(self.opt_params, lr=1e-2, momentum=0.9)
+        self.optimizer =  torch.optim.SGD(self.opt_params, lr=1e-2)
+        #self.optimizer = torch.optim.Adagrad(self.opt_params, lr=1e-2, momentum=0.9)
         #self.optimizer = torch.optim.Adam(self.opt_params, lr=1e-3)
 
         print 'optimizing...'
