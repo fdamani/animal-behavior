@@ -1,3 +1,6 @@
+4/8
+	- 
+
 4/7
 	- implement bootstrap approach
 		- sgd converges to correct mle estimate immediately then drifts away as loss goes down.
