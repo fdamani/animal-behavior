@@ -1,3 +1,18 @@
+4/9
+	- we have sgd working with lr = 1e-1 (rough approximations but different estimates
+		track expected behavior)
+	- bootstrap estimation
+		- fit a model to data
+		- generate bootstrapped datasets according to theta hat
+		- estimate theta_1:B
+		- compute mean and variance of theta_1:B.
+
+	- model building in simulation
+		- add learning component and regularization
+		- extend to vector of alphas
+	- fit all these models to real data.
+
+
 4/8
 
 - quick and dirty experiments for now.

@@ -90,10 +90,10 @@ def save(loss_l, particles_l, weights_l, mean_l, scale_l, model_params, savedir)
     #np.save(savedir+'/model_params.npy', model_params)
 
 class Evaluate(object):
-    def __init__(self, data, model, savedir, num_obs):
+    def __init__(self, data, model, savedir, num_obs_samples):
         self.data = data
         self.model = model
-        self.num_obs = num_obs
+        self.num_obs_samples = num_obs_samples
     def unpack_data(self, data):
         y_train = data[0]
         x = data[1]
@@ -154,7 +154,7 @@ class Evaluate(object):
 
         # sample forward once
         y_future, z_future = self.model.sample_forward(y_train, y_test, test_inds, x, z, 
-            x_future, self.num_obs, num_future_steps)
+            x_future, self.num_obs_samples, num_future_steps)
 
 
         # compute log prob

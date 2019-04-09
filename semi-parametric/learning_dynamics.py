@@ -56,18 +56,26 @@ class RNN(nn.Module):
 
 class LearningDynamicsModel(object):
     def __init__(self,
-                 init_prior,
-                 transition_log_scale,
+                 model_params,
+                 model_params_grad,
                  dim):
         # initialize parameters
+        init_prior = model_params['init_prior']
+        transition_log_scale = model_params['transition_log_scale']
+        log_gamma = model_params['log_gamma']
+        beta = model_params['beta']
+        log_alpha = model_params['log_alpha']
 
-        isGrad=True
+
         self.init_latent_loc = torch.tensor([init_prior[0]], 
-            requires_grad=False, device=device)
+            requires_grad=model_params_grad['init_prior'], device=device)
         self.init_latent_log_scale = torch.tensor([init_prior[1]], 
-            requires_grad=False, device=device)
+            requires_grad = model_params_grad['init_prior'], device=device)
         self.transition_log_scale = torch.tensor([transition_log_scale], 
-            requires_grad=isGrad, device=device)
+            requires_grad=model_params_grad['transition_log_scale'], device=device)
+        self.log_alpha = torch.tensor([log_alpha],
+            requires_grad=model_params_grad['log_alpha'], device=device)
+        
         self.sigmoid = nn.Sigmoid()
 
 
