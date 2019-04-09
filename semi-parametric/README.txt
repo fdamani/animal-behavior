@@ -1,5 +1,13 @@
 4/8
 
+- quick and dirty experiments for now.
+- high learning rate fast convergence (albeit bouncy)
+- implement bootstrap approach get quick results quick confdience intervals
+
+- repeat with new model params.
+
+
+
 - two experiments:
 	- for single theta, generate 20 trajectory y's
 		- fit the elbo to each of the 20

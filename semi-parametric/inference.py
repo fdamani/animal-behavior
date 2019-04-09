@@ -119,7 +119,7 @@ class Inference(object):
         self.vi = MeanFieldVI(self.model, self.savedir, self.num_mc_samples)
         
 
-        init = 'map' # 'true'
+        init = 'true' # 'true'
         if init == 'map':
             init_z = self.map_estimate()
             self.var_params = self.vi.init_var_params(self.T, self.dim, init_z)
@@ -145,7 +145,7 @@ class Inference(object):
         # initialize to all ones = smooth.
         z = torch.tensor(torch.ones(self.T, self.dim, device=device), requires_grad=True, device=device)
         y, x = self.unpack_data(self.data)
-        self.map_iters = 10000
+        self.map_iters = 3000
         self.opt_params = [z]
         self.map_optimizer =  torch.optim.Adam(self.opt_params, lr=1e-2)
         for t in range(self.map_iters):
@@ -162,7 +162,7 @@ class Inference(object):
         return self.opt_params[0].clone().detach()
 
 
-    def optimize(self):
+    def optimizeOLD(self):
         total_iters = 100
         for i in range(total_iters):
             self.optimize_model_params()
@@ -196,6 +196,7 @@ class Inference(object):
 
         print 'optimizing...'
         outputs = []
+        model_params = []
         clip = 5.
         var_iters = 3000
         #var_clip = 5.
@@ -212,6 +213,7 @@ class Inference(object):
             torch.nn.utils.clip_grad_norm(self.opt_params,clip)
 
             self.optimizer.step()
+            model_params.append(np.exp(self.model.transition_log_scale.item()))
     
             if t % 500 == 0:
                 print 'iter: ', t, 'loss: %.2f ' % output.item()#, 'scale param: ', np.exp(self.opt_params[-1].item()) 
@@ -221,19 +223,30 @@ class Inference(object):
                 plt.cla()
                 plt.plot(to_numpy(zx))
                 plt.savefig('curr_est_z.png')
+
+
+            if t % 250 == 0:
+                plt.cla()
+                plt.plot(outputs)
+                plt.savefig('loss.png')
+                plt.cla()
+                plt.plot(model_params)
+                plt.savefig('model_params.png')
         zx = self.var_params[0]
         plt.plot(to_numpy(zx))
 
-    def optimizeOLD(self):
+    def optimize(self):
         #init_z = self.map_estimate()
         self.opt_params = [self.var_params[0], self.var_params[1], self.model.transition_log_scale]
-        self.optimizer =  torch.optim.SGD(self.opt_params, lr=5e-2, momentum = .9)
+        self.optimizer =  torch.optim.SGD(self.opt_params, lr=1e-1, momentum=.9)
         #self.optimizer = torch.optim.Adagrad(self.opt_params, lr=1e-2, momentum=0.9)
         #self.optimizer = torch.optim.Adam(self.opt_params, lr=1e-3)
 
         print 'optimizing...'
         outputs = []
         clip = 5.
+        model_params = []
+
         #var_clip = 5.
         #model_param_clip = 500.
         for t in range(self.iters):
@@ -258,6 +271,7 @@ class Inference(object):
             #self.model.transition_log_scale.grad = 100000 * self.model.transition_log_scale.grad
             #self.var_params[0].grad = 100 * self.var_params[0].grad
             self.optimizer.step()
+            model_params.append(np.exp(self.model.transition_log_scale.item()))
             #print np.exp(self.opt_params[-1].item()) 
             #print 'iter: ', t, 'loss: ', output.item()
             # train_ll, test_ll, train_accuracy, test_accuracy, train_probs, test_probs = \
@@ -278,6 +292,14 @@ class Inference(object):
                 plt.cla()
                 plt.plot(to_numpy(zx))
                 plt.savefig('curr_est_z.png')
+
+            if t % 250 == 0:
+                plt.cla()
+                plt.plot(outputs)
+                plt.savefig('loss.png')
+                plt.cla()
+                plt.plot(model_params)
+                plt.savefig('model_params.png')
             if t % 50000 == 0:
                 embed()
         zx = self.var_params[0]
@@ -291,7 +313,7 @@ class MeanFieldVI(object):
     '''
     Mean field fully factorized variational inference.
     '''
-    def __init__(self, model, savedir, num_samples=1):
+    def __init__(self, model, savedir, num_samples=5):
         self.model = model
         self.savedir = savedir
         self.num_samples = num_samples
