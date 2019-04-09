@@ -21,8 +21,6 @@
 
 - repeat with new model params.
 
-
-
 - two experiments:
 	- for single theta, generate 20 trajectory y's
 		- fit the elbo to each of the 20
@@ -35,21 +33,10 @@
 		- bias correction. 
 
 
-
-
-
-
-
-
-
 - try same scale for gradients of model parameters and gradients of vi params
 	- whichever one is smaller multiple by a param to make it bigger.
 - try sgd with momentum.
 - how to get a better map fit?
-
-
-
-
 
 
 	- what is a data regime where we are confident that it should work?

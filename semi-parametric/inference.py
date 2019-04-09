@@ -101,7 +101,7 @@ class Map(object):
 
 
 class Inference(object):
-    def __init__(self, data, model, savedir, num_obs_samples, num_future_steps, num_mc_samples, z_true=None):
+    def __init__(self, data, model, model_params_grad, savedir, num_obs_samples, num_future_steps, num_mc_samples, z_true=None):
         self.data = data
         self.dim = self.data[1].size(2)
         self.T = self.data[1].size(0)
@@ -115,6 +115,7 @@ class Inference(object):
         self.num_obs_samples = num_obs_samples
         self.num_future_steps = num_future_steps
         self.num_mc_samples = 1
+        self.model_params_grad = model_params_grad
 
         self.vi = MeanFieldVI(self.model, self.savedir, self.num_mc_samples)
         
@@ -127,11 +128,18 @@ class Inference(object):
             self.var_params = self.vi.init_var_params(self.T, self.dim, z_true[0:-1])
         else:
             print 'specify valid init option.'
-        self.iters = 3000
+        self.iters = 10000
         #lr = 1e-4
-        self.opt_params = [self.var_params[0], self.var_params[1], self.model.transition_log_scale]
 
-        self.optimizer =  torch.optim.SGD(self.opt_params, lr=1e-1)
+        self.opt_params = {'var_mu': self.var_params[0], 
+                   'var_log_scale': self.var_params[1]}
+
+        # find model params with grad signal=True
+        for k,v in self.model_params_grad.items():
+            if v == True:
+                self.opt_params[k] = self.model.params[k]
+        #self.opt_params = [self.var_params[0], self.var_params[1], self.model.transition_log_scale]
+        self.optimizer =  torch.optim.SGD(self.opt_params.values(), lr=1e-2, momentum=.9)
 
 
         self.ev = Evaluate(self.data, self.model, savedir='', num_obs_samples=self.num_obs_samples)
@@ -164,61 +172,64 @@ class Inference(object):
 
     def optimize(self):
         #init_z = self.map_estimate()
-        self.opt_params = {'var_mu': self.var_params[0], 
-                           'var_log_scale': self.var_params[1],
-                           'transition_log_scale': self.model.transition_log_scale}
+        # self.opt_params = {'var_mu': self.var_params[0], 
+        #                    'var_log_scale': self.var_params[1],
+        #                    'transition_log_scale': self.model.transition_log_scale}
         #self.opt_params = [self.var_params[0], self.var_params[1], self.model.transition_log_scale]
-        self.optimizer =  torch.optim.SGD(self.opt_params.values(), lr=1e-1, momentum=.9)
+        #self.optimizer =  torch.optim.SGD(self.opt_params.values(), lr=1e-1, momentum=.9)
         #self.optimizer = torch.optim.Adagrad(self.opt_params, lr=1e-2, momentum=0.9)
         #self.optimizer = torch.optim.Adam(self.opt_params, lr=1e-3)
 
         print 'optimizing...'
         outputs = []
         clip = 5.
-        model_params = []
-
+        curr_model_params = {}
+        for k,v in self.model_params_grad.items():
+            if v == True:
+                curr_model_params[k] = []
         #var_clip = 5.
         #model_param_clip = 500.
         for t in range(self.iters):
             # e-step
             output = -self.vi.forward(self.train_data, self.var_params, t) / float(self.num_train)
-            #avg_output = output.item() / float(self.num_train)
             outputs.append(output.item())
             self.optimizer.zero_grad()
             output.backward()
           
             torch.nn.utils.clip_grad_norm(self.opt_params.values(), clip)
 
-    
             self.optimizer.step()
-            model_params.append(np.exp(self.model.transition_log_scale.item()))
+            for k, v in curr_model_params.items():
+                curr_model_params[k].append(self.opt_params[k].item())
 
             if t % 500 == 0:
                 # print 'iter: ', t, 'loss: %.2f ' % avg_output, '-train ll: %.2f' % \
                 # -train_ll.item(), '-test ll: %.2f ' % -test_ll.item(), 'train acc: %.3f ' % train_accuracy.item(), \
                 # 'test acc: %.3f ' % test_accuracy.item(), '-future ll: %.1f' % -avg_future_ll.item(), \
                 # 'scale param: ', np.exp(self.opt_params[-1].item())
-
-                print 'iter: ', t, 'loss: %.2f ' % output.item(), 'scale param: ', np.exp(self.opt_params['transition_log_scale'].item()) 
+                print 'iter: ', t, 'loss: %.2f ' % output.item(), 
+                for k,v in self.model_params_grad.items():
+                    if v == True:
+                        print k, self.opt_params[k].item()
+                #print 'iter: ', t, 'loss: %.2f ' % output.item(), 'scale param: ', np.exp(self.opt_params['transition_log_scale'].item()) 
             
+
             if t % 1000 == 0:
+                plt.cla()
+                plt.plot(outputs)
+                plt.savefig('loss.png')
+                plt.cla()
+                for k, v in curr_model_params.items():
+                    plt.plot(v)
+                    plt.savefig(k+'.png')
+
                 zx = self.var_params[0]
                 plt.cla()
                 plt.plot(to_numpy(zx))
                 plt.savefig('curr_est_z.png')
 
-            if t % 250 == 0:
-                plt.cla()
-                plt.plot(outputs)
-                plt.savefig('loss.png')
-                plt.cla()
-                plt.plot(model_params)
-                plt.savefig('model_params.png')
-        zx = self.var_params[0]
-        plt.plot(to_numpy(zx))
-        #plt.show()
 
-        #plt.savefig('learned_z.png')
+        # detach and clone all params
         for k in self.opt_params.keys():
             self.opt_params[k] = self.opt_params[k].clone().detach()
         return self.opt_params
