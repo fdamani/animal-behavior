@@ -232,9 +232,10 @@ class Inference(object):
                     plt.cla()
                     if k == 'beta':
                         plt.plot(sigmoid(np.array(v)))
+                        plt.axhline(y=sigmoid(self.true_model_params[k]), color='r', linestyle='-')
                     else:
                         plt.plot(v)
-                    plt.axhline(y=sigmoid(self.true_model_params[k]), color='r', linestyle='-')
+                        plt.axhline(y=self.true_model_params[k], color='r', linestyle='-')
                     plt.savefig(self.savedir+'/'+k+'.png')
 
                 zx = self.var_params[0]
