@@ -1,4 +1,11 @@
 4/10
+
+
+	- seems like beta estiamtion is working. but confirm also plot sigmoid(beta). why isnt it plotting? 
+
+
+
+
 	- for now, lets not learn the scale parameter. set it to a reasonable value (we will cross-validate
 		this value w.r.t. ELBO)
 			- mean-field implies underestimation of posterior correlation implying high scale parameter

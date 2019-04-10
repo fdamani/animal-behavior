@@ -29,10 +29,11 @@ dtype = torch.float32
 if torch.cuda.is_available():
     matplotlib.use('Agg')
 import matplotlib.pyplot as plt
+import utils
+from utils import sigmoid
 
 global_params = []
 
-output_file = sys.argv[1]
 def to_numpy(tx):
     return tx.detach().cpu().numpy()
 
@@ -101,7 +102,16 @@ class Map(object):
 
 
 class Inference(object):
-    def __init__(self, data, model, model_params_grad, savedir, num_obs_samples, num_future_steps, num_mc_samples, z_true=None):
+    def __init__(self, 
+                 data, 
+                 model, 
+                 model_params_grad, 
+                 savedir, 
+                 num_obs_samples, 
+                 num_future_steps, 
+                 num_mc_samples, 
+                 z_true=None,
+                 true_model_params=None):
         self.data = data
         self.dim = self.data[1].size(2)
         self.T = self.data[1].size(0)
@@ -116,7 +126,7 @@ class Inference(object):
         self.num_future_steps = num_future_steps
         self.num_mc_samples = 1
         self.model_params_grad = model_params_grad
-
+        self.true_model_params = true_model_params
         self.vi = MeanFieldVI(self.model, self.savedir, self.num_mc_samples)
         
 
@@ -153,7 +163,7 @@ class Inference(object):
         # initialize to all ones = smooth.
         z = torch.tensor(torch.ones(self.T, self.dim, device=device), requires_grad=True, device=device)
         y, x = self.unpack_data(self.data)
-        self.map_iters = 3000
+        self.map_iters = 2000
         self.opt_params = [z]
         self.map_optimizer =  torch.optim.Adam(self.opt_params, lr=1e-2)
         for t in range(self.map_iters):
@@ -166,7 +176,7 @@ class Inference(object):
             if t % 1000 == 0:
                 plt.cla()
                 plt.plot(to_numpy(z))
-                plt.savefig(output_file+'/curr_map_z.png')
+                plt.savefig(self.savedir+'/curr_map_z.png')
         return self.opt_params[0].clone().detach()
 
 
@@ -213,21 +223,24 @@ class Inference(object):
                         print k, self.opt_params[k].item()
                 #print 'iter: ', t, 'loss: %.2f ' % output.item(), 'scale param: ', np.exp(self.opt_params['transition_log_scale'].item()) 
             
-
             if t % 1000 == 0:
                 plt.cla()
                 plt.plot(outputs)
-                plt.savefig(output_file+'/loss.png')
+                plt.savefig(self.savedir+'/loss.png')
                 plt.cla()
                 for k, v in curr_model_params.items():
                     plt.cla()
-                    plt.plot(v)
-                    plt.savefig(output_file+'/'+k+'.png')
+                    if k == 'beta':
+                        plt.plot(sigmoid(np.array(v)))
+                    else:
+                        plt.plot(v)
+                    plt.axhline(y=sigmoid(self.true_model_params[k]), color='r', linestyle='-')
+                    plt.savefig(self.savedir+'/'+k+'.png')
 
                 zx = self.var_params[0]
                 plt.cla()
                 plt.plot(to_numpy(zx))
-                plt.savefig(output_file+'/curr_est_z.png')
+                plt.savefig(self.savedir+'/curr_est_z.png')
 
 
         # detach and clone all params

@@ -109,8 +109,10 @@ class LearningDynamicsModel(object):
         grad_rat_obj = self.grad_rat_obj_score(y_prev, x_prev, z_prev)
 
         # grad_loss = -grad_rat_obj + torch.exp(self.log_gamma) * z_prev 
-        grad_loss = -grad_rat_obj + torch.exp(self.log_gamma) * (.5 * z_prev + .5 * torch.sign(z_prev))
-
+        # grad_loss = -grad_rat_obj + torch.exp(self.log_gamma) * (.5 * z_prev + .5 * torch.sign(z_prev))
+        grad_loss = -grad_rat_obj + torch.exp(self.log_gamma) * (self.sigmoid(self.beta) * z_prev + \
+            (1.0 - self.sigmoid(self.beta))* torch.sign(z_prev))
+        
         mean = z_prev - torch.exp(self.log_alpha) * grad_loss
         scale = torch.exp(self.transition_log_scale)
         prior = Normal(mean, scale)
@@ -209,7 +211,9 @@ class LearningDynamicsModel(object):
         # mean = z_prev - grad_loss
 
         # grad_loss = -grad_rat_obj + torch.exp(self.log_gamma) * z_prev
-        grad_loss = -grad_rat_obj + torch.exp(self.log_gamma) * (.5 * z_prev + .5 * torch.sign(z_prev))
+        #grad_loss = -grad_rat_obj + torch.exp(self.log_gamma) * (.5 * z_prev + .5 * torch.sign(z_prev))
+        grad_loss = -grad_rat_obj + torch.exp(self.log_gamma) * (self.sigmoid(self.beta) * z_prev + \
+            (1.0 - self.sigmoid(self.beta))* torch.sign(z_prev))
 
         # properly vectorized
         mean = z_prev - torch.exp(self.log_alpha) * grad_loss

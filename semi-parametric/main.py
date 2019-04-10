@@ -31,11 +31,14 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 if torch.cuda.is_available():
     matplotlib.use('Agg')
 import matplotlib.pyplot as plt
-
+import datetime
+import utils
+from utils import sigmoid
 #dtype = torch.cuda.float if torch.cuda.is_available() else torch.float
 dtype = torch.float32
 
 output_file = sys.argv[1]
+output_file = output_file + '_'+str(datetime.datetime.now())
 os.makedirs(output_file)
 
 def to_numpy(tx):
@@ -68,7 +71,7 @@ if __name__ == '__main__':
         log_gamma = math.log(0.08)
         #log_gamma = math.log(0.00000004)
         
-        beta = 10. # sigmoid(4.) = .9820
+        beta = -3. # try -3, 0.
         log_alpha = math.log(.1)
         
         true_model_params = {'init_prior': init_prior,
@@ -87,7 +90,6 @@ if __name__ == '__main__':
         y = y.detach().cpu().numpy()
         x = x.detach().cpu().numpy()
         z_true = z_true.detach().cpu().numpy()
-        embed()
         plt.cla()
         plt.plot(z_true)
         plt.savefig(output_file+'/sim_z.png')
@@ -154,7 +156,7 @@ if __name__ == '__main__':
     init_transition_log_scale = [math.log(1e-2)]# * dim
     init_prior = ([0.0]*dim, [math.log(1.0)]*dim)
     log_gamma = math.log(0.01)
-    beta = 10. # sigmoid(4.) = .9820
+    beta = 0. # sigmoid(4.) = .9820
     log_alpha = math.log(.1)
 
     model_params = {'init_prior': init_prior,
@@ -166,11 +168,19 @@ if __name__ == '__main__':
     model_params_grad = {'init_prior': False,
                     'transition_log_scale': False,
                     'log_gamma': True,
-                    'beta': False,
+                    'beta': True,
                     'log_alpha': True}
 
     model = LearningDynamicsModel(model_params, model_params_grad, dim=3)
-    inference = Inference(data, model, model_params_grad, savedir='', num_obs_samples=num_obs_samples, num_future_steps=num_future_steps, num_mc_samples=num_mc_samples, z_true=z_true)
+    inference = Inference(data, 
+                          model, 
+                          model_params_grad, 
+                          savedir=output_file, 
+                          num_obs_samples=num_obs_samples, 
+                          num_future_steps=num_future_steps, 
+                          num_mc_samples=num_mc_samples, 
+                          z_true=z_true,
+                          true_model_params=true_model_params) # pass in just for figures
     opt_params = inference.optimize()
     embed()
 
