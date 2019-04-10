@@ -43,6 +43,60 @@ os.makedirs(output_file)
 
 def to_numpy(tx):
     return tx.detach().cpu().numpy()
+def compute_mean_and_std(x):
+    return x.mean(), x.std()
+def simulate_datasets(model_params,
+                      model_params_grad,
+                      dim, 
+                      num_obs_samples, 
+                      num_datasets):
+    # instantiate model
+    model = LearningDynamicsModel(model_params, model_params_grad, dim=dim)
+    num_obs = 50
+    datasets = []
+    for i in range(num_datasets):
+        y, x, z_true = model.sample(T=T, num_obs_samples=num_obs_samples)
+        datasets.append((y, x, z_true))
+    return datasets
+
+def estimation(dataset,
+               boot_index,
+               model_params,
+               model_params_grad, 
+               num_obs_samples, 
+               num_future_steps, 
+               category_tt_split,
+               num_mc_samples,
+               output_file,
+               true_model_params=None):
+    y, x, z_true = dataset
+    category_tt_split = 'single'
+    y, x, y_future, x_future = train_future_split(y, x, num_future_steps)
+    y_train, y_test, test_inds = train_test_split(y, x, cat=category_tt_split)
+    x = torch.tensor(x, dtype=dtype, device=device)
+    y_train = torch.tensor(y_train, dtype=dtype, device=device)
+    y_test = torch.tensor(y_test, dtype=dtype, device=device)
+    test_inds = torch.tensor(test_inds, dtype=torch.long, device=device)
+    y_future = torch.tensor(y_future, dtype=dtype, device=device)
+    x_future = torch.tensor(x_future, dtype=dtype, device=device)
+
+    data = [y_train, x, y_test, test_inds, y_future, x_future]
+
+
+    model = LearningDynamicsModel(model_params, model_params_grad, dim=3)
+
+    inference = Inference(data, 
+                          model, 
+                          model_params_grad, 
+                          savedir=str(boot_index)+'_'+output_file, 
+                          num_obs_samples=num_obs_samples, 
+                          num_future_steps=num_future_steps, 
+                          num_mc_samples=num_mc_samples, 
+                          z_true=z_true,
+                          true_model_params=true_model_params) # pass in just for figures
+
+    opt_params = inference.optimize()
+    return opt_params
 
 if __name__ == '__main__':
 
@@ -71,7 +125,7 @@ if __name__ == '__main__':
         log_gamma = math.log(0.08)
         #log_gamma = math.log(0.00000004)
         
-        beta = -3. # try -3, 0.
+        beta = 3. # try -3, 0.
         log_alpha = math.log(.1)
         
         true_model_params = {'init_prior': init_prior,
@@ -182,7 +236,35 @@ if __name__ == '__main__':
                           z_true=z_true,
                           true_model_params=true_model_params) # pass in just for figures
     opt_params = inference.optimize()
-    embed()
+
+    ## bootstrap
+    num_datasets=10
+    sim_datasets = simulate_datasets(opt_params, model_params_grad, dim, num_obs_samples, num_datasets)
+    bootstrapped_params = {'init_prior': [],
+                           'transition_log_scale': [],
+                           'log_gamma': [],
+                           'beta': [],
+                           'log_alpha': []}
+    for ind in range(num_datasets):
+        estimated_params = estimation(dataset=sim_datasets[ind], 
+                                      boot_index=ind, 
+                                      model_params=model_params, 
+                                      model_params_grad=model_params_grad, 
+                                      num_obs_samples=num_obs_samples, 
+                                      num_future_steps=num_future_steps,
+                                      category_tt_split=category_tt_split,
+                                      num_mc_samples=num_mc_samples,
+                                      output_file=output_file,
+                                      true_model_params=opt_params) # true is initial params fit to data.
+        for k,v in estimated_params.items():
+            bootstrapped_params[k].append(v)
+
+    for k,v in bootstrapped_params.items():
+        plt.cla()
+        mu, std = compute_mean_and_std(np.array(v))
+        plt.errorbar(x=np.arange(1), y=mu, yerr=2*std, fmt='o')
+        plt.save(output_file+'/'+k+'confidence.png')
+
 
     # y_future, z_future, avg_future_marginal_lh = inference.ev.sample_future_trajectory(inference.var_params, num_future_steps)
     # if sim:

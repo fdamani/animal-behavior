@@ -1,9 +1,31 @@
 4/10
+	- just finished draft of bootstrap code.
+	- fix bugs, get plots working (confidence intervals for each parameter)
+		- also make sure loss functions are properly saved for initial fit (its fine for now not to plot
+			each bootsrap run. add boolean flag to inference class to not plot those.)
+	- investigate different betas and confidence intervals.
 
 
-	- seems like beta estiamtion is working. but confirm also plot sigmoid(beta). why isnt it plotting? 
+
+	- run on real datasets.
 
 
+
+
+
+
+
+
+
+
+
+
+
+	- we can properly estimate beta when its close to 0 or 1, but our single experiment for beta=.5 shows
+		estimation is unreliable.
+	- we should repeat these 3 experiments under a bootstrap scenario to get error bars on these estimates.
+	- get bootstrap code working. compute error bars for each model parameter try many values of beta
+		(0.0, 0.25, 0.5, 0.75, 1.0)
 
 
 	- for now, lets not learn the scale parameter. set it to a reasonable value (we will cross-validate
