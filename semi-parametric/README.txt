@@ -1,3 +1,12 @@
+4/10
+	- show reliable estimation of sparsity parameter for l2
+		- try separating learning and regularization parameter
+			- instead of having alpha * loss
+		- try different parameter settings -> which setting makes it most obviously identifiable?
+		- try estimating sparsity without the learning component. is that identifiable?
+	- estimate all params from synthetic data (show recovery)
+	- estimate all params from real data (show confidence intervals)
+
 4/9
 	- we have sgd working with lr = 1e-1 (rough approximations but different estimates
 		track expected behavior)
@@ -11,6 +20,13 @@
 		- add learning component and regularization
 		- extend to vector of alphas
 	- fit all these models to real data.
+
+
+	- added l2 penalty
+		- identify cases where this is an identifiable parameter. how does it tradeoff with other params?
+
+
+
 
 
 4/8
