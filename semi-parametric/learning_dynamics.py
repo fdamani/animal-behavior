@@ -82,6 +82,10 @@ class LearningDynamicsModel(object):
             x = torch.cat([intercept, x], dim=2)
         
         z = [self.sample_init_prior()]
+        z[0][0][1] = torch.tensor(-1.)
+        z[0][0][2] = torch.tensor(1.)
+        # set second value to -1.
+        # set 3rd value to +1
 
         y = [self.sample_likelihood(x[0], z[0], num_obs_samples)]
         for i in range(1, T):
@@ -103,8 +107,9 @@ class LearningDynamicsModel(object):
 
         # compute policy gradient update
         grad_rat_obj = self.grad_rat_obj_score(y_prev, x_prev, z_prev)
-        grad_loss = -grad_rat_obj + \
-             torch.exp(self.log_gamma) * z_prev
+
+        # grad_loss = -grad_rat_obj + torch.exp(self.log_gamma) * z_prev 
+        grad_loss = -grad_rat_obj + torch.exp(self.log_gamma) * (.5 * z_prev + .5 * torch.sign(z_prev))
 
         mean = z_prev - torch.exp(self.log_alpha) * grad_loss
         scale = torch.exp(self.transition_log_scale)
@@ -198,7 +203,14 @@ class LearningDynamicsModel(object):
         z_curr = z[1:]
 
         grad_rat_obj = self.grad_rat_obj_score_vec(y, x, z)[0:-1]
-        grad_loss = -grad_rat_obj + torch.exp(self.log_gamma) * z_prev
+
+        # grad_loss = -torch.exp(self.log_alpha) * grad_rat_obj + torch.exp(self.log_gamma) * z_prev
+        # # properly vectorized
+        # mean = z_prev - grad_loss
+
+        # grad_loss = -grad_rat_obj + torch.exp(self.log_gamma) * z_prev
+        grad_loss = -grad_rat_obj + torch.exp(self.log_gamma) * (.5 * z_prev + .5 * torch.sign(z_prev))
+
         # properly vectorized
         mean = z_prev - torch.exp(self.log_alpha) * grad_loss
 

@@ -35,6 +35,9 @@ import matplotlib.pyplot as plt
 #dtype = torch.cuda.float if torch.cuda.is_available() else torch.float
 dtype = torch.float32
 
+output_file = sys.argv[1]
+os.makedirs(output_file)
+
 def to_numpy(tx):
     return tx.detach().cpu().numpy()
 
@@ -51,6 +54,7 @@ if __name__ == '__main__':
     import datetime
     savedir += str(datetime.datetime.now())
 
+
     datafiles = ['W065.csv', 'W066.csv', 'W068.csv', 'W072.csv', 'W073.csv', 'W074.csv', 'W075.csv', 'W078.csv',
                  'W080.csv', 'W081.csv', 'W082.csv', 'W083.csv', 'W088.csv', 'W089.csv', 'W094.csv']
     if sim:
@@ -61,27 +65,32 @@ if __name__ == '__main__':
         dim = 3
         init_prior = ([0.0]*dim, [math.log(1.0)]*dim)
         transition_log_scale = [math.log(1e-2)]# * dim
-        log_gamma = math.log(0.008)
-        beta = 10. # sigmoid(4.) = .9820
-        log_alpha = math.log(.5)
+        log_gamma = math.log(0.08)
+        #log_gamma = math.log(0.00000004)
         
-        model_params = {'init_prior': init_prior,
+        beta = 10. # sigmoid(4.) = .9820
+        log_alpha = math.log(.1)
+        
+        true_model_params = {'init_prior': init_prior,
                         'transition_log_scale': transition_log_scale,
                         'log_gamma': log_gamma,
                         'beta': beta,
                         'log_alpha': log_alpha}
-        
-        model = LearningDynamicsModel(model_params, model_params_grad, dim=3)
+        model_params_grad = {'init_prior': False,
+                'transition_log_scale': False,
+                'log_gamma': True,
+                'beta': False,
+                'log_alpha': False}
+        model = LearningDynamicsModel(true_model_params, model_params_grad, dim=3)
         num_obs_samples = 50
         y, x, z_true = model.sample(T=T, num_obs_samples=num_obs_samples)
         y = y.detach().cpu().numpy()
         x = x.detach().cpu().numpy()
         z_true = z_true.detach().cpu().numpy()
-
+        embed()
         plt.cla()
         plt.plot(z_true)
-        plt.show()
-        plt.savefig('sim_z.png')
+        plt.savefig(output_file+'/sim_z.png')
         # embed()
         # model params
     else:
@@ -144,9 +153,9 @@ if __name__ == '__main__':
     # model params
     init_transition_log_scale = [math.log(1e-2)]# * dim
     init_prior = ([0.0]*dim, [math.log(1.0)]*dim)
-    log_gamma = math.log(0.008)
+    log_gamma = math.log(0.01)
     beta = 10. # sigmoid(4.) = .9820
-    log_alpha = math.log(1e-1)
+    log_alpha = math.log(.1)
 
     model_params = {'init_prior': init_prior,
                     'transition_log_scale': init_transition_log_scale,
@@ -158,7 +167,7 @@ if __name__ == '__main__':
                     'transition_log_scale': False,
                     'log_gamma': True,
                     'beta': False,
-                    'log_alpha': False}
+                    'log_alpha': True}
 
     model = LearningDynamicsModel(model_params, model_params_grad, dim=3)
     inference = Inference(data, model, model_params_grad, savedir='', num_obs_samples=num_obs_samples, num_future_steps=num_future_steps, num_mc_samples=num_mc_samples, z_true=z_true)

@@ -1,4 +1,21 @@
 4/10
+	- for now, lets not learn the scale parameter. set it to a reasonable value (we will cross-validate
+		this value w.r.t. ELBO)
+			- mean-field implies underestimation of posterior correlation implying high scale parameter
+				b/c each q(z_i) wants to be independent so not much smoothness. todo list includes
+				learn a more structured variational family but in the meantime i propose we be practical:
+				cross-validate an estimate for the scale and move forward with interesting science.
+	- show we can reliably estimate alpha, sparsity for l2 and now lets introduce second layer of sparsity
+		show we can recover beta as well.
+	- once we can successfully do above, lets get a boostrap estimate of all of these in synthetic data
+		create plot and save for meeting with ryan tomorrow.
+	- repeat with real data.
+		- provide additional characterizations of sparsity. look at trajectories how do they vary
+		- look at held out predictions on future trajectories.
+
+
+
+
 	- show reliable estimation of sparsity parameter for l2
 		- try separating learning and regularization parameter
 			- instead of having alpha * loss

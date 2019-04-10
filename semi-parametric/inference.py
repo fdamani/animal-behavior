@@ -32,7 +32,7 @@ import matplotlib.pyplot as plt
 
 global_params = []
 
-
+output_file = sys.argv[1]
 def to_numpy(tx):
     return tx.detach().cpu().numpy()
 
@@ -128,7 +128,7 @@ class Inference(object):
             self.var_params = self.vi.init_var_params(self.T, self.dim, z_true[0:-1])
         else:
             print 'specify valid init option.'
-        self.iters = 10000
+        self.iters = 50000
         #lr = 1e-4
 
         self.opt_params = {'var_mu': self.var_params[0], 
@@ -139,7 +139,7 @@ class Inference(object):
             if v == True:
                 self.opt_params[k] = self.model.params[k]
         #self.opt_params = [self.var_params[0], self.var_params[1], self.model.transition_log_scale]
-        self.optimizer =  torch.optim.SGD(self.opt_params.values(), lr=1e-2, momentum=.9)
+        self.optimizer =  torch.optim.SGD(self.opt_params.values(), lr=1e-1, momentum=.9)
 
 
         self.ev = Evaluate(self.data, self.model, savedir='', num_obs_samples=self.num_obs_samples)
@@ -166,7 +166,7 @@ class Inference(object):
             if t % 1000 == 0:
                 plt.cla()
                 plt.plot(to_numpy(z))
-                plt.savefig('curr_map_z.png')
+                plt.savefig(output_file+'/curr_map_z.png')
         return self.opt_params[0].clone().detach()
 
 
@@ -217,16 +217,17 @@ class Inference(object):
             if t % 1000 == 0:
                 plt.cla()
                 plt.plot(outputs)
-                plt.savefig('loss.png')
+                plt.savefig(output_file+'/loss.png')
                 plt.cla()
                 for k, v in curr_model_params.items():
+                    plt.cla()
                     plt.plot(v)
-                    plt.savefig(k+'.png')
+                    plt.savefig(output_file+'/'+k+'.png')
 
                 zx = self.var_params[0]
                 plt.cla()
                 plt.plot(to_numpy(zx))
-                plt.savefig('curr_est_z.png')
+                plt.savefig(output_file+'/curr_est_z.png')
 
 
         # detach and clone all params
