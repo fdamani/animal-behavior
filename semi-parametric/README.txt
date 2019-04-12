@@ -1,4 +1,105 @@
+4/12
+
+- investigate the claim "regularization improves future marginal lh"
+	- we have reproduced this effect for varying number of future time steps and num obs/time-step for training
+	- can we show this effect for one obs per time-step?
+	- what about across rats?
+	- can you visualize the trajectories and look at how they differ?
+		- why does regularization give us more realistic trajectories? look at a few samples and maybe average
+			over a bunch of them and compare 
+- change z trajectory plots so they all have the same y axis (-4 to 4 is fine and make them wider/longer)
+
+
+
+
+- get confidence intervals for two params and repeat this for 10 datasets.
+	- run this on server, but get this working locally first.
+- show we get the same estimates when estimating parameters on first half
+	vs second half
+- for 10 datasets, use the same # of trials (cut off trials when learning
+	plateaus))
+
+- get all other evaluation metrics to work first.
+
+
+4/11
+
+- automate all evaluation figures and have those figures produced every run
+	- BIC values (automatically computed by number of params that are being optimized).
+	- posterior predictive
+	- marginal likelihoods
+	- held-out-session trajectories predictions. 
+	- PPCs.
+	- avg likelihood vs plot of marginal likelihood as a function of data point.
+		- use this to visualize where sparsity param might be helping?
+		- plot max and mi likelihood across time points
+			- does sparsity help us be more confident in what we know most well
+			or does it help in the places that we were initially least confident?
+			
+
+we want to understand the effect of sparsity
+	- X print relative contributions of learning and regularization component
+	- repeat analysis under different scales
+	- different number of trials
+	- different type of regularization
+
+
+
+- print magnitude of grad_rat_obj vs regularization for trained model
+- repeat with smaller num trials
+- re-do analysis for L1.
+
+
+
+	- get bootstrap confidence interval plots for *just* l2 penalty. 
+		- quick n dirty with big lr is fine for now.
+	- get this working for one real dataset.
+		- compare to gamma set to 0.
+	- repeat for actual dataset as well. 
+	- compare actual trajectories - how do they look different?
+
+
+
+	- we have uncertainty plots for parameters
+	- now, lets investigate the effect of regularization
+		- confounding variables: scale size and number of trials per step.
+		- run a few more runs with smaller # of trials per step. try 10 and 25.
+		- plot magnitude of sparsity component vs learning component over time.
+
+
 4/10
+	- give me boxplots for bootstrapped results.
+	- learning rate decay schedule for quick learning.
+	- 
+
+
+
+
+	- add adaptive learning rate that decays over time 
+	- save all model parameters to folders
+	- once we get results from synthetic datasets showing we can estimate model parameters accurately
+		run on real datasets
+	- implement cross-validation of scale parameter (decide based on map estimate?)
+	- given data generated from this system, show loss is lower for this model versus one without regularization and no learning at all.
+		- generate data according to this system and compare loss to a model where regularization 
+			param is set to 0.
+	- evaluation: rekindle prediction on validation data (all sorts of validation data)
+		- predict these numbers for all models.
+	- alpha
+		- vector of alphas
+		- decaying alpha
+	- add momentum term
+	- beta
+		- why is it hard to estimate when beta=5?
+		- can we estimate gamma better when beta=0.0 (e.g. l1 penatly?)
+
+
+
+
+
+
+
+
 	- just finished draft of bootstrap code.
 	- fix bugs, get plots working (confidence intervals for each parameter)
 		- also make sure loss functions are properly saved for initial fit (its fine for now not to plot
@@ -8,13 +109,6 @@
 
 
 	- run on real datasets.
-
-
-
-
-
-
-
 
 
 

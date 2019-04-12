@@ -40,6 +40,7 @@ class LearningDynamicsModel(object):
                  dim):
         self.model_params = model_params
         self.model_params_grad = model_params_grad
+        self.dim = dim
         # initialize parameters
         init_prior = self.model_params['init_prior']
         transition_log_scale = self.model_params['transition_log_scale']
@@ -103,6 +104,9 @@ class LearningDynamicsModel(object):
         simple AR-1 prior
 
         z_t+1 = beta * z_t + alpha * grad_rat_obj - sgn(z_t)*C
+        z is 1 x dim
+        y is num_obs x 1
+        x is num_obs x dim
         '''
 
         # compute policy gradient update
@@ -112,7 +116,7 @@ class LearningDynamicsModel(object):
         # grad_loss = -grad_rat_obj + torch.exp(self.log_gamma) * (.5 * z_prev + .5 * torch.sign(z_prev))
         grad_loss = -grad_rat_obj + torch.exp(self.log_gamma) * (self.sigmoid(self.beta) * z_prev + \
             (1.0 - self.sigmoid(self.beta))* torch.sign(z_prev))
-        
+
         mean = z_prev - torch.exp(self.log_alpha) * grad_loss
         scale = torch.exp(self.transition_log_scale)
         prior = Normal(mean, scale)
@@ -212,15 +216,33 @@ class LearningDynamicsModel(object):
 
         # grad_loss = -grad_rat_obj + torch.exp(self.log_gamma) * z_prev
         #grad_loss = -grad_rat_obj + torch.exp(self.log_gamma) * (.5 * z_prev + .5 * torch.sign(z_prev))
-        grad_loss = -grad_rat_obj + torch.exp(self.log_gamma) * (self.sigmoid(self.beta) * z_prev + \
+        regularization_comp = torch.exp(self.log_gamma) * (self.sigmoid(self.beta) * z_prev + \
             (1.0 - self.sigmoid(self.beta))* torch.sign(z_prev))
+
+        grad_loss = -grad_rat_obj + regularization_comp
 
         # properly vectorized
         mean = z_prev - torch.exp(self.log_alpha) * grad_loss
 
         scale = torch.exp(self.transition_log_scale)
         prior = Normal(mean, scale)
-        return torch.sum(prior.log_prob(z_curr))
+        return torch.sum(prior.log_prob(z_curr)) #, -grad_rat_obj, regularization_comp
+
+
+    def log_prior_relative_contrib(self, z, y, x):
+        '''
+            input: z_1:t
+            parameterize p(z_t | z_t-1, theta)
+        '''
+        z_prev = z[0:-1]
+        z_curr = z[1:]
+
+        grad_rat_obj = self.grad_rat_obj_score_vec(y, x, z)[0:-1]
+
+        regularization_comp = torch.exp(self.log_gamma) * (self.sigmoid(self.beta) * z_prev + \
+            (1.0 - self.sigmoid(self.beta))* torch.sign(z_prev))
+
+        return -grad_rat_obj, regularization_comp
 
     def log_likelihood_test(self, y_train, y_test, test_inds, x, z):
         '''
@@ -230,15 +252,28 @@ class LearningDynamicsModel(object):
         '''
         logits = torch.sum(x * z[:, None, :], dim=2)
         train_inds = self.return_train_ind(y_train)
+        
         logits_train = logits[train_inds]
         obs = Bernoulli(logits=logits_train)
-        train_ll = torch.sum(obs.log_prob(y_train[train_inds]))
+        train_log_ll = torch.sum(obs.log_prob(y_train[train_inds]))
+        #train_likelihood = torch.exp(obs.log_prob(y_train[train_inds]))
+        #train_p_y_1_given_x = torch.sigmoid(logits_train)
+        
         logits_test = logits[test_inds]
         obs = Bernoulli(logits=logits_test)
-        test_ll = torch.sum(obs.log_prob(y_test))
-        train_probs = self.sigmoid(logits_train)
-        test_probs = self.sigmoid(logits_test)
-        return train_ll, test_ll, train_probs, test_probs
+        test_log_ll = torch.sum(obs.log_prob(y_test))
+        #test_likelihood = torch.exp(obs.log_prob(y_test))
+        #test_p_y_1_given_x = torch.sigmoid(logits_test)
+        return test_log_ll
+        #return test_likelihood, train_p_y_1_given_x, test_p_y_1_given_x
+        #return train_log_ll, test_log_ll, train_probs, test_probs
+
+    def log_likelihood(self, y, x, z):
+        logits = torch.sum(x * z[:, None, :], dim=2)
+        obs = Bernoulli(logits=logits)
+        log_lh = torch.sum(obs.log_prob(y))
+        return log_lh
+
 
     def sample_forward(self, y_train, y_test, test_inds, x, z, x_future, num_obs, num_future_steps):
         '''
@@ -246,10 +281,15 @@ class LearningDynamicsModel(object):
         '''
         z_future = []
         y_future = []
+        y_prev = y_train[-1] if y_train[-1][0] != -1 else y_test[-1]
+        z_prev = z[-1][None]
+        x_prev = x[-1]
         for i in range(num_future_steps):
-            y_prev = y_train[-1] if y_train[-1][0] != -1 else y_test[-1]
-            z_i = self.sample_prior(z[-1], y_prev, x[-1])
-            y_i = self.sample_likelihood(x[i], z_i, num_obs)
+            z_i = self.sample_prior(z_prev, y_prev[:,None], x_prev)
+            y_i = self.sample_likelihood(x_future[i], z_i, num_obs)
+            y_prev = y_i
+            z_prev = z_i
+            x_prev = x_future[i]
 
             z_future.append(z_i)
             y_future.append(y_i)
@@ -258,8 +298,6 @@ class LearningDynamicsModel(object):
         z_future = torch.cat(z_future)
 
         return y_sampled_future, z_future
-
-
 
     ###################################################
     # learning
@@ -330,8 +368,6 @@ class LearningDynamicsModel(object):
 
         avg_gradient = torch.mean(per_sample_gradient, dim=1)
         return avg_gradient
-
-
 
     def rat_policy(self, x, z):
         '''

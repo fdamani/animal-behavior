@@ -109,7 +109,8 @@ class Inference(object):
                  savedir, 
                  num_obs_samples, 
                  num_future_steps, 
-                 num_mc_samples, 
+                 num_mc_samples,
+                 ppc_window,
                  z_true=None,
                  true_model_params=None):
         self.data = data
@@ -119,6 +120,8 @@ class Inference(object):
         self.train_data = self.data[0:2]
         self.y_future = self.data[4]
         self.x_future = self.data[5]
+        self.y_complete = self.data[6]
+
         self.num_future_steps = self.y_future.shape[0]
         self.model = model
         self.savedir = savedir
@@ -128,7 +131,10 @@ class Inference(object):
         self.model_params_grad = model_params_grad
         self.true_model_params = true_model_params
         self.vi = MeanFieldVI(self.model, self.savedir, self.num_mc_samples)
-        
+
+        self.ppc_window = ppc_window
+        self.isPPC = False
+
 
         init = 'map' # 'true'
         if init == 'map':
@@ -138,7 +144,7 @@ class Inference(object):
             self.var_params = self.vi.init_var_params(self.T, self.dim, z_true[0:-1])
         else:
             print 'specify valid init option.'
-        self.iters = 50000
+        self.iters = 20000
         #lr = 1e-4
 
         self.opt_params = {'var_mu': self.var_params[0], 
@@ -163,7 +169,7 @@ class Inference(object):
         # initialize to all ones = smooth.
         z = torch.tensor(torch.ones(self.T, self.dim, device=device), requires_grad=True, device=device)
         y, x = self.unpack_data(self.data)
-        self.map_iters = 2000
+        self.map_iters = 3000
         self.opt_params = [z]
         self.map_optimizer =  torch.optim.Adam(self.opt_params, lr=1e-2)
         for t in range(self.map_iters):
@@ -176,7 +182,7 @@ class Inference(object):
             if t % 1000 == 0:
                 plt.cla()
                 plt.plot(to_numpy(z))
-                plt.savefig(self.savedir+'/curr_map_z.png')
+                plt.savefig(self.savedir+'/plots/curr_map_z.png')
         return self.opt_params[0].clone().detach()
 
 
@@ -189,6 +195,7 @@ class Inference(object):
         #self.optimizer =  torch.optim.SGD(self.opt_params.values(), lr=1e-1, momentum=.9)
         #self.optimizer = torch.optim.Adagrad(self.opt_params, lr=1e-2, momentum=0.9)
         #self.optimizer = torch.optim.Adam(self.opt_params, lr=1e-3)
+        y, x = self.train_data[0], self.train_data[1]
 
         print 'optimizing...'
         outputs = []
@@ -213,17 +220,19 @@ class Inference(object):
                 curr_model_params[k].append(self.opt_params[k].item())
 
             if t % 500 == 0:
-                # print 'iter: ', t, 'loss: %.2f ' % avg_output, '-train ll: %.2f' % \
-                # -train_ll.item(), '-test ll: %.2f ' % -test_ll.item(), 'train acc: %.3f ' % train_accuracy.item(), \
-                # 'test acc: %.3f ' % test_accuracy.item(), '-future ll: %.1f' % -avg_future_ll.item(), \
-                # 'scale param: ', np.exp(self.opt_params[-1].item())
+                # printing
                 print 'iter: ', t, 'loss: %.2f ' % output.item(), 
                 for k,v in self.model_params_grad.items():
                     if v == True:
-                        print k, self.opt_params[k].item()
-                #print 'iter: ', t, 'loss: %.2f ' % output.item(), 'scale param: ', np.exp(self.opt_params['transition_log_scale'].item()) 
-            
-            if t % 1000 == 0:
+                        print k, '%.3f ' % self.opt_params[k].item(),
+                test_post_predictive = self.ev.valid_loss(self.opt_params)
+                y_future, z_future, avg_future_marginal_lh = self.ev.sample_future_trajectory(self.opt_params, self.num_future_steps)
+                train_acc, test_acc = self.ev.accuracy(self.opt_params)
+                print 'train acc: %.3f ' % train_acc.item(), 'test acc: %.3f ' % test_acc.item(), \
+                     'post pred: %.3f ' % test_post_predictive, 'future marginal lh: %.3f' % avg_future_marginal_lh.item()
+
+
+                # plotting
                 plt.cla()
                 plt.plot(outputs)
                 plt.savefig(self.savedir+'/loss.png')
@@ -232,21 +241,43 @@ class Inference(object):
                     plt.cla()
                     if k == 'beta':
                         plt.plot(sigmoid(np.array(v)))
-                        plt.axhline(y=sigmoid(self.true_model_params[k]), color='r', linestyle='-')
+                        if self.true_model_params:
+                            plt.axhline(y=sigmoid(self.true_model_params[k]), color='r', linestyle='-')
                     else:
                         plt.plot(v)
-                        plt.axhline(y=self.true_model_params[k], color='r', linestyle='-')
-                    plt.savefig(self.savedir+'/'+k+'.png')
+                        if self.true_model_params:
+                            plt.axhline(y=self.true_model_params[k], color='r', linestyle='-')
+                    plt.savefig(self.savedir+'/plots/'+k+'.png')
 
                 zx = self.var_params[0]
                 plt.cla()
                 plt.plot(to_numpy(zx))
-                plt.savefig(self.savedir+'/curr_est_z.png')
-
+                plt.savefig(self.savedir+'/plots/curr_est_z.png')
+            if t % 4000 == 0:
+                if self.isPPC:
+                    rw_avg, rw_true_avg = self.ev.ppc_reward(self.y_complete, x, self.T, self.num_obs_samples, self.dim, self.ppc_window)
+                    plt.cla()
+                    plt.plot(rw_avg, label='model')
+                    plt.plot(rw_true_avg, label='true')
+                    plt.legend(loc='lower right')
+                    plt.savefig(self.savedir+'/plots/ppc_reward.png')
 
         # detach and clone all params
         for k in self.opt_params.keys():
             self.opt_params[k] = self.opt_params[k].clone().detach()
+        
+
+        # access learning and regularization components
+        learning, regularization = self.model.log_prior_relative_contrib(self.var_params[0], y, x)
+        torch.save(learning.clone().detach(), self.savedir+'/model_structs/learning_after_training.pth')
+        torch.save(regularization.clone().detach(), self.savedir+'/model_structs/regularization_after_training.pth')
+        plt.cla()
+        plt.plot(to_numpy(learning.clone().detach()))
+        plt.savefig(self.savedir+'/plots/learning_after_training.png')
+        plt.cla()
+        plt.plot(to_numpy(regularization.clone().detach()))
+        plt.savefig(self.savedir+'/plots/regularization_after_training.png')
+        
         return self.opt_params
 
 class MeanFieldVI(object):

@@ -140,7 +140,7 @@ def train_future_split(y, x, num_future_time_steps):
 		y_future, x_future
 
 
-def train_test_split(y, x, cat):
+def train_test_split(y, x, cat, percent_test):
 	'''
 	y: T x obs
 	x: T x obs x dim
@@ -157,26 +157,27 @@ def train_test_split(y, x, cat):
 		- ask to predict end of each session +/- window.
 	'''
 	if cat == 'single':
-		percent_random_inds = .2
+		percent_test = .2
 		T = y.shape[0]
 		num_obs = y.shape[1]
 		dim = x.shape[2]
 		inds = np.arange(T)
-		test_inds = np.random.choice(a=inds, size=int(percent_random_inds*T), replace=False)
+		test_inds = np.random.choice(a=inds, size=int(percent_test*T), replace=False)
 		mask = np.ones_like(inds, bool)
 		y_test = np.copy(y)[test_inds]
 		#x_test = np.copy(x)[test_inds]
 		y_train = y
 		y_train[test_inds] = -1
 	elif cat == 'band':
-		window_size = 2
-		percent_random_inds = .2
+		window_size = 10
+		percent_random_inds = .01
 		T = y.shape[0]
 		num_obs = y.shape[1]
 		dim = x.shape[2]
 		inds = np.arange(T)
 		test_inds = np.random.choice(a=inds, size=int(percent_random_inds*T), replace=False)
 		test_inds = enumerate_neighbor_inds(test_inds, window_size)
+		test_inds = test_inds[test_inds < T]
 		mask = np.ones_like(inds, bool)
 		y_test = np.copy(y)[test_inds]
 		#x_test = np.copy(x)[test_inds]
@@ -193,4 +194,5 @@ def enumerate_neighbor_inds(x, window_size):
 		sx.append(np.arange(i-one_side, i+one_side))
 	inds = np.concatenate(sx)
 	inds = inds[inds > 10]
-	return inds
+
+	return np.unique(inds)

@@ -104,7 +104,7 @@ class Evaluate(object):
         return y_train, x, y_test, test_inds, y_future, x_future
 
     def unpack_var_params(self, params):
-        var_loc, var_log_scale = params[0], params[1]
+        var_loc, var_log_scale = params['var_mu'], params['var_log_scale']
         return var_loc, var_log_scale
 
     def return_train_ind(self, y):
@@ -116,26 +116,99 @@ class Evaluate(object):
             1. monte carlo approx by averaging over multiple trajectories
             sampled from q(z) (e.g. the posterior predictive)
             2. ROC/AUC as well as accuracy.
+        need to use log sum exp trick
+
+        log sum_{mc samples} prod p(y|x,z)
+
+        - test marginal likelihood
+        - evaluate p(y_test|x_test, z_test) under many samples from q(z_test)
+        - average probabilities
+        - take log.
+
+
+        get S monte carlo samples from posterior
+        for each sample
+            compute the log likelihood of the test data under the sample
+        use the log sum exp trick to get the average probability (e.g. the posterior predictive)
+            - log(1/N) + log sum exp (log p(y_test | x, z'))
+        average the log marginal by number of observations to get the average lh.
+
         '''
         y_train, x, y_test, test_inds, y_future, x_future = self.unpack_data(self.data)
         num_test = y_test.shape[0]
         num_train = y_train.shape[0] - num_test
+        num_obs = y_test.shape[1]
         var_loc, var_log_scale = self.unpack_var_params(opt_params)
-        z = var_loc # for now, just take mean of q(z) as your z sample
-        train_ll, test_ll, train_probs, test_probs = \
-            self.model.log_likelihood_test(y_train, y_test, test_inds, x, z)
-        train_inds = self.return_train_ind(y_train)
+        var_loc = var_loc.clone().detach()
+        var_log_scale = var_log_scale.clone().detach()
+        posterior_dist = Normal(var_loc, torch.exp(var_log_scale))
+        num_mc_samples = 25
+        # expected_test_likelihood = 0
+        # expected_train_probs = 0
+        # expected_test_probs = 0
+        test_log_lh = []
+        for i in range(num_mc_samples):
+            z = posterior_dist.sample()
+            test_log_lh.append(self.model.log_likelihood_test(y_train, y_test, test_inds, x, z))
+            # expected_test_likelihood += test_likelihood
+            # expected_train_probs += train_p_y_1_given_x
+            # expected_test_probs += test_p_y_1_given_x
+        test_log_lh = torch.tensor(test_log_lh, device=device)
+        test_marginal_log_ll = -torch.log(torch.tensor(float(num_mc_samples), device=device)) + \
+            torch.logsumexp(test_log_lh, dim=0)
+
+        test_marginal_log_ll = test_marginal_log_ll / float(num_test)
+        test_marginal_log_ll = test_marginal_log_ll / float(num_obs)
+
+
+        # compute posterior predictive per sample
+        # test_marginal_log_ll = torch.sum(torch.log(expected_test_likelihood))
+        # test_posterior_predictive = test_marginal_log_ll / float(num_test)
+        # test_posterior_predictive = test_posterior_predictive / float(num_obs)
+
+
+        # train_inds = self.return_train_ind(y_train)
+
+        # compute train accuracy
+        # train_preds = torch.tensor(expected_train_probs.detach() > .5, device=device, dtype=torch.float)
+        # train_accuracy = torch.mean(torch.tensor(train_preds == y_train[train_inds], device=device, dtype=torch.float))
+        
+        # # compute test accuracy
+        # test_preds = torch.tensor(expected_test_probs.detach() > .5, device=device, dtype=torch.float)
+        # test_accuracy = torch.mean(torch.tensor(test_preds == y_test, device=device, dtype=torch.float))
+
+        # avg_train_log_ll = train_log_ll.detach() / float(num_train)
+        # avg_test_log_ll = test_log_ll.detach() / float(num_test)
+
+        return test_marginal_log_ll #, train_accuracy, test_accuracy
+        #return avg_train_log_ll, avg_test_log_ll, train_accuracy, test_accuracy, train_probs, test_probs
+
+
+    def accuracy(self, opt_params):
+        y_train, x, y_test, test_inds, y_future, x_future = self.unpack_data(self.data)
+        num_test = y_test.shape[0]
+        num_train = y_train.shape[0] - num_test
+        num_obs = y_test.shape[1]
+        var_loc, var_log_scale = self.unpack_var_params(opt_params)
+        z = var_loc.clone().detach()
+        
+        logits = torch.sum(x * z[:, None, :], dim=2)
+
+        # compute train accuracy
+        train_inds = self.model.return_train_ind(y_train)
+        logits_train = logits[train_inds]
+        train_probs = torch.sigmoid(logits_train)
         train_preds = torch.tensor(train_probs.detach() > .5, device=device, dtype=torch.float)
         train_accuracy = torch.mean(torch.tensor(train_preds == y_train[train_inds], device=device, dtype=torch.float))
         
+        # compute validation accuracy
+        logits_test = logits[test_inds]
+        test_probs = torch.sigmoid(logits_test)
         test_preds = torch.tensor(test_probs.detach() > .5, device=device, dtype=torch.float)
         test_accuracy = torch.mean(torch.tensor(test_preds == y_test, device=device, dtype=torch.float))
 
-        avg_train_ll = train_ll.detach() / float(num_train)
-        avg_test_ll = test_ll.detach() / float(num_test)
 
-        return avg_train_ll, avg_test_ll, train_accuracy, test_accuracy, train_probs, test_probs
-
+        return train_accuracy, test_accuracy
 
     def sample_future_trajectory(self, opt_params, num_future_steps):
         '''
@@ -144,25 +217,63 @@ class Evaluate(object):
         - forward sample from last time point for num_future_steps
 
         return predicted y's and z's
+
+        - compute a set of plausible future trajectories
+        - evaluate p(y_test | x_test, z_test) under each trajectory
+        - average probabilities
+        - take log and return value.
         '''
         y_train, x, y_test, test_inds, y_true_future, x_future = self.unpack_data(self.data)
         num_test = y_test.shape[0]
         num_train = y_train.shape[0] - num_test
         num_future_samples = y_true_future.shape[0]
+        num_obs = y_test.shape[1]
         var_loc, var_log_scale = self.unpack_var_params(opt_params)
-        z = var_loc
+        z = var_loc.clone().detach()
+        assert num_future_samples == num_future_steps
 
         # sample forward once
-        y_future, z_future = self.model.sample_forward(y_train, y_test, test_inds, x, z, 
-            x_future, self.num_obs_samples, num_future_steps)
+        #### sample forward multiple times?
+        num_mc_samples = 25
+        log_lh = []
+        for i in range(num_mc_samples):
+            y_future, z_future = self.model.sample_forward(y_train, y_test, test_inds, x, z, 
+                x_future, self.num_obs_samples, num_future_steps)
+            # compute log prob
+            log_lh.append(self.model.log_likelihood(y_true_future, x_future, z_future))
+
+        log_lh = torch.tensor(log_lh, device=device)
+        marginal_lh = -torch.log(torch.tensor(float(num_mc_samples), device=device)) + \
+            torch.logsumexp(log_lh, dim=0)
+
+        marginal_lh = marginal_lh / float(num_future_samples)
+        marginal_lh = marginal_lh / float(num_obs)
 
 
-        # compute log prob
-        future_marginal_lh = self.model.log_likelihood_vec(y_true_future, x_future, z_future)
-        avg_future_marginal_lh = future_marginal_lh.detach() / float(num_future_samples)
+        return y_future, z_future, marginal_lh
 
+    def ppc_reward(self, y_true, x_true, T, num_obs_samples, dim, window, num_samples=25):
+        ''' posterior predictive check
+        given model parameters, simulate trajectories and data.
+        - compute smoothed reward over time
+        - compare to true.
+        '''
+        rw_true = self.model.rat_reward_vec(y_true, x_true)
+        rw_true = torch.mean(rw_true, dim=1)
+        rw_true_avg = np.convolve(rw_true, np.ones(window))/ float(window)
+        rw_true_avg = rw_true_avg[window:-window]
 
-        return y_future, z_future, avg_future_marginal_lh
+        rw_avg_list = []
+        for i in range(num_samples):
+            y, x, z = self.model.sample(T, num_obs_samples, dim)
+            rw = self.model.rat_reward_vec(y, x)
+            rw = torch.mean(rw, dim=1)
+            rw_avg = np.convolve(rw, np.ones(window))/ float(window)
+            rw_avg = rw_avg[window:-window]
+            rw_avg_list.append(rw_avg)
+        rw_avg = np.mean(np.array(rw_avg_list), axis=0)
+
+        return rw_avg, rw_true_avg
 
     def loss_on_future_trajectory(self, y_future, z_future):
         y_train, x, y_test, test_inds, y_true_future, x_future = self.unpack_data(self.data)

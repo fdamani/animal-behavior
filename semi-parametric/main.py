@@ -40,6 +40,10 @@ dtype = torch.float32
 output_file = sys.argv[1]
 output_file = output_file + '_'+str(datetime.datetime.now())
 os.makedirs(output_file)
+os.makedirs(output_file+'/model_structs')
+os.makedirs(output_file+'/data')
+os.makedirs(output_file+'/plots')
+
 
 def to_numpy(tx):
     return tx.detach().cpu().numpy()
@@ -55,7 +59,7 @@ def simulate_datasets(model_params,
     num_obs = 50
     datasets = []
     for i in range(num_datasets):
-        y, x, z_true = model.sample(T=T, num_obs_samples=num_obs_samples)
+        y, x, z_true = model.sample(T=T, num_obs_samples=num_obs_samples, dim=dim)
         datasets.append((y, x, z_true))
     return datasets
 
@@ -83,12 +87,18 @@ def estimation(dataset,
     data = [y_train, x, y_test, test_inds, y_future, x_future]
 
 
-    model = LearningDynamicsModel(model_params, model_params_grad, dim=3)
+    model = LearningDynamicsModel(model_params, model_params_grad, dim)
 
+    boot_output_file = output_file+'/'+str(boot_index)
+    os.makedirs(boot_output_file)
+    os.makedirs(boot_output_file+'/model_structs')
+    os.makedirs(boot_output_file+'/data')
+    os.makedirs(boot_output_file+'/plots')
+    
     inference = Inference(data, 
                           model, 
-                          model_params_grad, 
-                          savedir=str(boot_index)+'_'+output_file, 
+                          model_params_grad,
+                          savedir=boot_output_file,
                           num_obs_samples=num_obs_samples, 
                           num_future_steps=num_future_steps, 
                           num_mc_samples=num_mc_samples, 
@@ -96,6 +106,9 @@ def estimation(dataset,
                           true_model_params=true_model_params) # pass in just for figures
 
     opt_params = inference.optimize()
+    torch.save(opt_params, boot_output_file+'/model_structs/opt_params.npy')
+    torch.save(dataset, boot_output_file+'/data/dataset.npy')
+    torch.save(model_params, boot_output_file+'/model_structs/model_params.npy')
     return opt_params
 
 if __name__ == '__main__':
@@ -104,7 +117,7 @@ if __name__ == '__main__':
     grad_model_params = False
     inference_types = ['map', 'mfvi', 'is', 'smc', 'vsmc']
     inference_type = inference_types[4]
-    sim = True
+    sim = False
     file_path = '/tigress/fdamani/neuro_output/'
     # file_path = 'output/'
     savedir = file_path
@@ -125,7 +138,7 @@ if __name__ == '__main__':
         log_gamma = math.log(0.08)
         #log_gamma = math.log(0.00000004)
         
-        beta = 3. # try -3, 0.
+        beta = 100. # try -3, 0.
         log_alpha = math.log(.1)
         
         true_model_params = {'init_prior': init_prior,
@@ -133,6 +146,7 @@ if __name__ == '__main__':
                         'log_gamma': log_gamma,
                         'beta': beta,
                         'log_alpha': log_alpha}
+        torch.save(true_model_params, output_file+'/model_structs/true_model_params.pth')
         model_params_grad = {'init_prior': False,
                 'transition_log_scale': False,
                 'log_gamma': True,
@@ -141,16 +155,32 @@ if __name__ == '__main__':
         model = LearningDynamicsModel(true_model_params, model_params_grad, dim=3)
         num_obs_samples = 50
         y, x, z_true = model.sample(T=T, num_obs_samples=num_obs_samples)
+        
+        rw = torch.mean(model.rat_reward_vec(y, x), dim=1)
+        window=100
+        rw_avg = np.convolve(rw, np.ones(window))/ float(window)
+        rw_avg = rw_avg[window:-window]
+        # plt.plot(rw_avg)
+        # plt.show()
+
         y = y.detach().cpu().numpy()
         x = x.detach().cpu().numpy()
         z_true = z_true.detach().cpu().numpy()
         plt.cla()
         plt.plot(z_true)
-        plt.savefig(output_file+'/sim_z.png')
-        # embed()
+        plt.savefig(output_file+'/plots/sim_z.png')
+
+        # rw = torch.mean(model.rat_reward_vec(torch.tensor(y, device=device), torch.tensor(x,device=device)), dim=1)
+        # ppc_window=100
+        # rw_avg = np.convolve(to_numpy(rw), np.ones(window))/ float(window)
+        # rw_avg = rw_avg[window:-window]
+        # plt.cla()
+        # plt.plot(rw_avg)
+        # plt.show()
+
         # model params
     else:
-        num_obs_samples = 200
+        num_obs_samples = 5
         #f = '/tigress/fdamani/neuro_data/data/clean/LearningData_W066_minmaxnorm.txt'
         # data file
         index = 0# sys.argv[1]
@@ -165,11 +195,13 @@ if __name__ == '__main__':
         savedir += '__'+rat
 
         # os.mkdir(savedir)
-        # f = '../data/W066_short.csv'
+        f = '../data/W066_short.csv'
+        savedir = output_file
    
         x, y, rw = read_and_process(num_obs_samples, f, savedir=savedir)
         rw = torch.tensor(rw, dtype=dtype, device=device)
-
+        z_true = None
+        true_model_params=None
 
         # rnn_hiddens = torch.load('hiddens_rnn_7_features.pt')
         # rnn_hiddens = rnn_hiddens.detach().to(device)
@@ -179,23 +211,21 @@ if __name__ == '__main__':
 
         dim = x.shape[2]
         T = x.shape[0]
-        init_prior = ([0.0]*dim, [math.log(1.0)]*dim)
-        transition_scale = [math.log(1.0)] #* dim  
-    
     # split data into train/test
 
-
-    ## read in hiddens instead of x. and compare the two.
-    # os.mkdir(savedir+'/data')
-    # np.save(savedir+'/data/y.npy', y.detach().cpu().numpy())
-    # np.save(savedir+'/data/x.npy', x.detach().cpu().numpy())
-    # np.save(savedir+'/data/rw.npy', rw.detach().cpu().numpy())
-    # print 'gpu usage: ', torch.cuda.memory_allocated(device) /1e9
-    num_future_steps = 1
-    category_tt_split = 'single'
+    embed()
+    ############ initial estimation 
+    num_future_steps = 300
+    category_tt_split = 'band'
     num_mc_samples = 10
+    ppc_window = 50
+    percent_test = .2
+
+    y_complete = torch.tensor(y.copy(), device=device)
+    y_complete = y_complete[0:-num_future_steps]
+
     y, x, y_future, x_future = train_future_split(y, x, num_future_steps)
-    y_train, y_test, test_inds = train_test_split(y, x, cat=category_tt_split)
+    y_train, y_test, test_inds = train_test_split(y, x, category_tt_split, percent_test)
     x = torch.tensor(x, dtype=dtype, device=device)
     y_train = torch.tensor(y_train, dtype=dtype, device=device)
     y_test = torch.tensor(y_test, dtype=dtype, device=device)
@@ -203,14 +233,15 @@ if __name__ == '__main__':
     y_future = torch.tensor(y_future, dtype=dtype, device=device)
     x_future = torch.tensor(x_future, dtype=dtype, device=device)
     #data = [y_train, x]
-    data = [y_train, x, y_test, test_inds, y_future, x_future]
+    data = [y_train, x, y_test, test_inds, y_future, x_future, y_complete]
+
     # declare model here
 
     # model params
-    init_transition_log_scale = [math.log(1e-2)]# * dim
+    init_transition_log_scale = [math.log(1e-1)]# * dim
     init_prior = ([0.0]*dim, [math.log(1.0)]*dim)
-    log_gamma = math.log(0.01)
-    beta = 0. # sigmoid(4.) = .9820
+    log_gamma = math.log(1e-10)# .08 1e-10
+    beta = 100. # sigmoid(4.) = .9820
     log_alpha = math.log(.1)
 
     model_params = {'init_prior': init_prior,
@@ -221,23 +252,36 @@ if __name__ == '__main__':
     
     model_params_grad = {'init_prior': False,
                     'transition_log_scale': False,
-                    'log_gamma': True,
-                    'beta': True,
+                    'log_gamma': False,
+                    'beta': False,
                     'log_alpha': True}
 
-    model = LearningDynamicsModel(model_params, model_params_grad, dim=3)
+    torch.save(model_params_grad, output_file+'/model_structs/model_params_grad.pth')
+    torch.save(model_params, output_file+'/model_structs/init_model_params.pth')
+
+    model = LearningDynamicsModel(model_params, model_params_grad, dim)
     inference = Inference(data, 
                           model, 
                           model_params_grad, 
                           savedir=output_file, 
                           num_obs_samples=num_obs_samples, 
                           num_future_steps=num_future_steps, 
-                          num_mc_samples=num_mc_samples, 
+                          num_mc_samples=num_mc_samples,
+                          ppc_window=ppc_window, 
                           z_true=z_true,
                           true_model_params=true_model_params) # pass in just for figures
     opt_params = inference.optimize()
 
-    ## bootstrap
+    for k,v in model_params_grad.items():
+        if v == False:
+            opt_params[k] = model_params[k]
+
+    torch.save(opt_params, output_file+'/model_structs/opt_params.pth')
+    torch.save(data, output_file+'/data/data.pth')
+
+    embed()
+
+    ################### bootstrap ################################################
     num_datasets=10
     sim_datasets = simulate_datasets(opt_params, model_params_grad, dim, num_obs_samples, num_datasets)
     bootstrapped_params = {'init_prior': [],
@@ -246,6 +290,9 @@ if __name__ == '__main__':
                            'beta': [],
                            'log_alpha': []}
     for ind in range(num_datasets):
+        if ind == 0: 
+            continue
+        print 'bootstrap: ', ind
         estimated_params = estimation(dataset=sim_datasets[ind], 
                                       boot_index=ind, 
                                       model_params=model_params, 
@@ -257,13 +304,23 @@ if __name__ == '__main__':
                                       output_file=output_file,
                                       true_model_params=opt_params) # true is initial params fit to data.
         for k,v in estimated_params.items():
-            bootstrapped_params[k].append(v)
+            if k in bootstrapped_params:
+                bootstrapped_params[k].append(v)
 
     for k,v in bootstrapped_params.items():
-        plt.cla()
-        mu, std = compute_mean_and_std(np.array(v))
-        plt.errorbar(x=np.arange(1), y=mu, yerr=2*std, fmt='o')
-        plt.save(output_file+'/'+k+'confidence.png')
+        # if param was estimated in model
+        if model_params_grad[k]:
+            plt.cla()
+            plt.boxplot(np.array(v))
+            # mu, std = compute_mean_and_std(np.array(v))
+            # plt.errorbar(x=np.arange(1), y=mu, yerr=2*std, fmt='o')
+            # plot theta hat
+            plt.axhline(y=opt_params[k], color='r', linestyle='--')
+            # plot theta star if exists
+            if sim:
+                plt.axhline(y=true_model_params[k], color='b', linestyle='--')
+            plt.savefig(output_file+'/plots/'+k+'confidence.png')
+    torch.save(bootstrapped_params, output_file+'/model_structs/bootstrapped_params.npy')
 
 
     # y_future, z_future, avg_future_marginal_lh = inference.ev.sample_future_trajectory(inference.var_params, num_future_steps)
