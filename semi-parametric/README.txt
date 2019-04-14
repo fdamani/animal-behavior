@@ -1,3 +1,29 @@
+4/14
+- train on last 5k trials and first 5k trials
+	- bootstrap estimate for 6 params
+	- repeat across datasets
+
+
+4/13
+	- learn 4 parameters
+		- sparsity for x1 x2
+		- sparsity for everything else
+		- first half of trials versus second half.
+
+	- try having a sparsity parameter per dimension
+		- useful parameter that tells you something interesting about how the rat "pruns" out
+			irrelevant dimensions.
+			- try this in particular towards the latter half. 
+
+	- finish evaluation plots
+		- create plots of average and each mc trajectory for future
+		- run results for 10 rats with 10 bootstrap estimates to get confidence intervals.
+		- save eval results
+		- run results for each rat broken into first half vs second half for 10 rats and 10 bootstraps per.
+
+
+
+
 4/12
 
 - investigate the claim "regularization improves future marginal lh"

@@ -140,7 +140,7 @@ def train_future_split(y, x, num_future_time_steps):
 		y_future, x_future
 
 
-def train_test_split(y, x, cat, percent_test):
+def train_test_split(y, x, cat, percent_test=.2):
 	'''
 	y: T x obs
 	x: T x obs x dim
@@ -157,7 +157,6 @@ def train_test_split(y, x, cat, percent_test):
 		- ask to predict end of each session +/- window.
 	'''
 	if cat == 'single':
-		percent_test = .2
 		T = y.shape[0]
 		num_obs = y.shape[1]
 		dim = x.shape[2]

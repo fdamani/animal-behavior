@@ -234,11 +234,13 @@ class Evaluate(object):
 
         # sample forward once
         #### sample forward multiple times?
-        num_mc_samples = 25
+        num_mc_samples = 50
         log_lh = []
+        future_trajectories = []
         for i in range(num_mc_samples):
             y_future, z_future = self.model.sample_forward(y_train, y_test, test_inds, x, z, 
                 x_future, self.num_obs_samples, num_future_steps)
+            future_trajectories.append(z_future)
             # compute log prob
             log_lh.append(self.model.log_likelihood(y_true_future, x_future, z_future))
 
@@ -250,7 +252,7 @@ class Evaluate(object):
         marginal_lh = marginal_lh / float(num_obs)
 
 
-        return y_future, z_future, marginal_lh
+        return y_future, future_trajectories, marginal_lh, 
 
     def ppc_reward(self, y_true, x_true, T, num_obs_samples, dim, window, num_samples=25):
         ''' posterior predictive check

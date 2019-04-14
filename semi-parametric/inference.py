@@ -155,8 +155,8 @@ class Inference(object):
             if v == True:
                 self.opt_params[k] = self.model.params[k]
         #self.opt_params = [self.var_params[0], self.var_params[1], self.model.transition_log_scale]
-        self.optimizer =  torch.optim.SGD(self.opt_params.values(), lr=1e-1, momentum=.9)
-
+        #self.optimizer =  torch.optim.SGD(self.opt_params.values(), lr=1e-1, momentum=.9)
+        self.optimizer =  torch.optim.Adam(self.opt_params.values(), lr=1e-2)
 
         self.ev = Evaluate(self.data, self.model, savedir='', num_obs_samples=self.num_obs_samples)
         self.num_test = self.data[2].shape[0]
@@ -182,6 +182,8 @@ class Inference(object):
             if t % 1000 == 0:
                 plt.cla()
                 plt.plot(to_numpy(z))
+                figure = plt.gcf() # get current figure
+                figure.set_size_inches(8, 6)
                 plt.savefig(self.savedir+'/plots/curr_map_z.png')
         return self.opt_params[0].clone().detach()
 
@@ -207,6 +209,8 @@ class Inference(object):
         #var_clip = 5.
         #model_param_clip = 500.
         for t in range(self.iters):
+            # if t == 10000:
+            #     self.optimizer =  torch.optim.SGD(self.opt_params.values(), lr=1e-2, momentum=.9)
             # e-step
             output = -self.vi.forward(self.train_data, self.var_params, t) / float(self.num_train)
             outputs.append(output.item())
@@ -217,24 +221,25 @@ class Inference(object):
 
             self.optimizer.step()
             for k, v in curr_model_params.items():
-                curr_model_params[k].append(self.opt_params[k].item())
-
+                curr_model_params[k].append([el.item() for el in self.opt_params[k].flatten()])
             if t % 500 == 0:
                 # printing
                 print 'iter: ', t, 'loss: %.2f ' % output.item(), 
                 for k,v in self.model_params_grad.items():
                     if v == True:
-                        print k, '%.3f ' % self.opt_params[k].item(),
+                        for el in self.opt_params[k].flatten():
+                            print k, '%.3f ' % el.item(),
                 test_post_predictive = self.ev.valid_loss(self.opt_params)
-                y_future, z_future, avg_future_marginal_lh = self.ev.sample_future_trajectory(self.opt_params, self.num_future_steps)
+                y_future, future_trajectories, avg_future_marginal_lh = self.ev.sample_future_trajectory(self.opt_params, self.num_future_steps)
                 train_acc, test_acc = self.ev.accuracy(self.opt_params)
                 print 'train acc: %.3f ' % train_acc.item(), 'test acc: %.3f ' % test_acc.item(), \
                      'post pred: %.3f ' % test_post_predictive, 'future marginal lh: %.3f' % avg_future_marginal_lh.item()
 
-
                 # plotting
                 plt.cla()
                 plt.plot(outputs)
+                figure = plt.gcf() # get current figure
+                figure.set_size_inches(8, 6)
                 plt.savefig(self.savedir+'/loss.png')
                 plt.cla()
                 for k, v in curr_model_params.items():
@@ -245,21 +250,34 @@ class Inference(object):
                             plt.axhline(y=sigmoid(self.true_model_params[k]), color='r', linestyle='-')
                     else:
                         plt.plot(v)
-                        if self.true_model_params:
-                            plt.axhline(y=self.true_model_params[k], color='r', linestyle='-')
+                        # if self.true_model_params:
+                        #     for el in self.true_model_params[k]:
+                        #         plt.axhline(y=el, color='r', linestyle='-')
+                    
+                    figure = plt.gcf() # get current figure
+                    figure.set_size_inches(8, 6)
                     plt.savefig(self.savedir+'/plots/'+k+'.png')
 
                 zx = self.var_params[0]
                 plt.cla()
                 plt.plot(to_numpy(zx))
+                figure = plt.gcf() # get current figure
+                figure.set_size_inches(8, 6)
                 plt.savefig(self.savedir+'/plots/curr_est_z.png')
-            if t % 4000 == 0:
+            if t == 4000:
+                # plt.cla()
+                # plt.plot(to_numpy(future_trajectories[0]))
+                # plt.show()
+
+
                 if self.isPPC:
                     rw_avg, rw_true_avg = self.ev.ppc_reward(self.y_complete, x, self.T, self.num_obs_samples, self.dim, self.ppc_window)
                     plt.cla()
                     plt.plot(rw_avg, label='model')
                     plt.plot(rw_true_avg, label='true')
                     plt.legend(loc='lower right')
+                    figure = plt.gcf() # get current figure
+                    figure.set_size_inches(8, 6)
                     plt.savefig(self.savedir+'/plots/ppc_reward.png')
 
         # detach and clone all params

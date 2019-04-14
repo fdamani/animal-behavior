@@ -48,6 +48,8 @@ class LearningDynamicsModel(object):
         beta = self.model_params['beta']
         log_alpha = self.model_params['log_alpha']
 
+
+
         self.init_latent_loc = torch.tensor([init_prior[0]], 
             requires_grad=self.model_params_grad['init_prior'], device=device)
         self.init_latent_log_scale = torch.tensor([init_prior[1]], 
@@ -58,9 +60,9 @@ class LearningDynamicsModel(object):
             requires_grad=self.model_params_grad['log_alpha'], device=device)
         self.beta = torch.tensor([beta],
             requires_grad=self.model_params_grad['beta'], device=device)
-        self.log_gamma = torch.tensor([log_gamma],
+        self.log_gamma = torch.tensor(log_gamma,
             requires_grad=self.model_params_grad['log_gamma'], device=device)
-        
+    
         self.params = {}
         self.params['init_prior'] = (self.init_latent_loc, self.init_latent_log_scale)
         self.params['transition_log_scale'] = self.transition_log_scale
@@ -68,9 +70,11 @@ class LearningDynamicsModel(object):
         self.params['beta'] = self.beta
         self.params['log_gamma'] = self.log_gamma
 
+        self.sparsity_dims = torch.ones(self.dim, device=device)
+        #self.sparsity_dims[4] = 1
+        #self.sparsity_dims[1:3] = 0
 
         self.sigmoid = nn.Sigmoid()
-
 
     def sample(self, T, num_obs_samples=10, dim=3, x=None):
         '''
@@ -114,8 +118,10 @@ class LearningDynamicsModel(object):
 
         # grad_loss = -grad_rat_obj + torch.exp(self.log_gamma) * z_prev 
         # grad_loss = -grad_rat_obj + torch.exp(self.log_gamma) * (.5 * z_prev + .5 * torch.sign(z_prev))
-        grad_loss = -grad_rat_obj + torch.exp(self.log_gamma) * (self.sigmoid(self.beta) * z_prev + \
+        regularization_comp = torch.exp(self.log_gamma) * (self.sigmoid(self.beta) * z_prev + \
             (1.0 - self.sigmoid(self.beta))* torch.sign(z_prev))
+
+        grad_loss = -grad_rat_obj + self.sparsity_dims * regularization_comp
 
         mean = z_prev - torch.exp(self.log_alpha) * grad_loss
         scale = torch.exp(self.transition_log_scale)
@@ -219,7 +225,7 @@ class LearningDynamicsModel(object):
         regularization_comp = torch.exp(self.log_gamma) * (self.sigmoid(self.beta) * z_prev + \
             (1.0 - self.sigmoid(self.beta))* torch.sign(z_prev))
 
-        grad_loss = -grad_rat_obj + regularization_comp
+        grad_loss = -grad_rat_obj + self.sparsity_dims * regularization_comp
 
         # properly vectorized
         mean = z_prev - torch.exp(self.log_alpha) * grad_loss

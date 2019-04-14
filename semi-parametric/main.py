@@ -74,17 +74,19 @@ def estimation(dataset,
                output_file,
                true_model_params=None):
     y, x, z_true = dataset
+    y_complete = y.clone().detach()
+    y_complete = y_complete[0:-num_future_steps]
     category_tt_split = 'single'
     y, x, y_future, x_future = train_future_split(y, x, num_future_steps)
     y_train, y_test, test_inds = train_test_split(y, x, cat=category_tt_split)
-    x = torch.tensor(x, dtype=dtype, device=device)
-    y_train = torch.tensor(y_train, dtype=dtype, device=device)
+    x = x.clone().detach() #torch.tensor(x, dtype=dtype, device=device)
+    y_train = y_train.clone().detach() #torch.tensor(y_train, dtype=dtype, device=device)
     y_test = torch.tensor(y_test, dtype=dtype, device=device)
     test_inds = torch.tensor(test_inds, dtype=torch.long, device=device)
-    y_future = torch.tensor(y_future, dtype=dtype, device=device)
-    x_future = torch.tensor(x_future, dtype=dtype, device=device)
+    y_future = y_future.clone().detach() #torch.tensor(y_future, dtype=dtype, device=device)
+    x_future = x_future.clone().detach() #torch.tensor(x_future, dtype=dtype, device=device)
 
-    data = [y_train, x, y_test, test_inds, y_future, x_future]
+    data = [y_train, x, y_test, test_inds, y_future, x_future, y_complete]
 
 
     model = LearningDynamicsModel(model_params, model_params_grad, dim)
@@ -95,13 +97,14 @@ def estimation(dataset,
     os.makedirs(boot_output_file+'/data')
     os.makedirs(boot_output_file+'/plots')
     
-    inference = Inference(data, 
-                          model, 
-                          model_params_grad,
+    inference = Inference(data=data, 
+                          model=model, 
+                          model_params_grad=model_params_grad,
                           savedir=boot_output_file,
                           num_obs_samples=num_obs_samples, 
                           num_future_steps=num_future_steps, 
-                          num_mc_samples=num_mc_samples, 
+                          num_mc_samples=num_mc_samples,
+                          ppc_window=50,
                           z_true=z_true,
                           true_model_params=true_model_params) # pass in just for figures
 
@@ -180,7 +183,7 @@ if __name__ == '__main__':
 
         # model params
     else:
-        num_obs_samples = 5
+        num_obs_samples = 10
         #f = '/tigress/fdamani/neuro_data/data/clean/LearningData_W066_minmaxnorm.txt'
         # data file
         index = 0# sys.argv[1]
@@ -203,6 +206,9 @@ if __name__ == '__main__':
         z_true = None
         true_model_params=None
 
+        x = x[0:5000]
+        y = y[0:5000]
+
         # rnn_hiddens = torch.load('hiddens_rnn_7_features.pt')
         # rnn_hiddens = rnn_hiddens.detach().to(device)
         # x = rnn_hiddens[:, None, :]
@@ -212,14 +218,13 @@ if __name__ == '__main__':
         dim = x.shape[2]
         T = x.shape[0]
     # split data into train/test
-
-    embed()
     ############ initial estimation 
-    num_future_steps = 300
+    num_future_steps = 10
     category_tt_split = 'band'
     num_mc_samples = 10
     ppc_window = 50
     percent_test = .2
+    features = ['Bias', 'X1', 'X2', 'Choice t-1', 'RW Side t-1', 'X1 t-1', 'X2 t-1']
 
     y_complete = torch.tensor(y.copy(), device=device)
     y_complete = y_complete[0:-num_future_steps]
@@ -234,13 +239,12 @@ if __name__ == '__main__':
     x_future = torch.tensor(x_future, dtype=dtype, device=device)
     #data = [y_train, x]
     data = [y_train, x, y_test, test_inds, y_future, x_future, y_complete]
-
     # declare model here
 
     # model params
-    init_transition_log_scale = [math.log(1e-1)]# * dim
+    init_transition_log_scale = [math.log(5e-2)]# * dim
     init_prior = ([0.0]*dim, [math.log(1.0)]*dim)
-    log_gamma = math.log(1e-10)# .08 1e-10
+    log_gamma = [math.log(.08)]*dim# .08 1e-10
     beta = 100. # sigmoid(4.) = .9820
     log_alpha = math.log(.1)
 
@@ -252,7 +256,7 @@ if __name__ == '__main__':
     
     model_params_grad = {'init_prior': False,
                     'transition_log_scale': False,
-                    'log_gamma': False,
+                    'log_gamma': True,
                     'beta': False,
                     'log_alpha': True}
 
@@ -278,8 +282,6 @@ if __name__ == '__main__':
 
     torch.save(opt_params, output_file+'/model_structs/opt_params.pth')
     torch.save(data, output_file+'/data/data.pth')
-
-    embed()
 
     ################### bootstrap ################################################
     num_datasets=10
@@ -311,14 +313,28 @@ if __name__ == '__main__':
         # if param was estimated in model
         if model_params_grad[k]:
             plt.cla()
-            plt.boxplot(np.array(v))
+            vx = torch.t(torch.stack(v))
+            #vx = [to_numpy(el) for el in v]
+            fix, ax = plt.subplots()
+            ax.boxplot(vx)
+            ax.set_axisbelow(True)
+            ax.set_xlabel('Feature')
+            ax.set_ylabel(k)
+            # plot theta hat
+            if len(opt_params[k]) == 1:
+                ax.scatter(1, opt_params[k], color='b')
+            else:
+                ax.set_xticklabels(features)
+                plt.scatter(features, opt_params[k], color='b')
             # mu, std = compute_mean_and_std(np.array(v))
             # plt.errorbar(x=np.arange(1), y=mu, yerr=2*std, fmt='o')
             # plot theta hat
-            plt.axhline(y=opt_params[k], color='r', linestyle='--')
+           #  plt.axhline(y=opt_params[k], color='r', linestyle='--')
             # plot theta star if exists
-            if sim:
-                plt.axhline(y=true_model_params[k], color='b', linestyle='--')
+            # if sim:
+            #     plt.axhline(y=true_model_params[k], color='b', linestyle='--')
+            figure = plt.gcf() # get current figure
+            figure.set_size_inches(8, 6)
             plt.savefig(output_file+'/plots/'+k+'confidence.png')
     torch.save(bootstrapped_params, output_file+'/model_structs/bootstrapped_params.npy')
 
