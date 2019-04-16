@@ -38,7 +38,7 @@ from utils import sigmoid
 dtype = torch.float32
 
 output_file = sys.argv[1]
-output_file = '/tigress/fdamani/neuro_output/exp4/'
+output_file = '/tigress/fdamani/neuro_output/exp1/'
 # output_file = output_file + '_'+str(datetime.datetime.now())
 # os.makedirs(output_file)
 # os.makedirs(output_file+'/model_structs')
@@ -129,9 +129,11 @@ if __name__ == '__main__':
     import datetime
     savedir += str(datetime.datetime.now())
 
-
-    datafiles = ['W065.csv', 'W066.csv', 'W068.csv', 'W072.csv', 'W073.csv', 'W074.csv', 'W075.csv', 'W078.csv',
-                 'W080.csv', 'W081.csv', 'W082.csv', 'W083.csv', 'W088.csv', 'W089.csv', 'W094.csv']
+    # datafiles = ['W065.csv', 'W066.csv', 'W068.csv', 'W072.csv', 'W073.csv', 'W074.csv', 'W075.csv', 'W078.csv',
+    #              'W080.csv', 'W081.csv', 'W082.csv', 'W083.csv', 'W088.csv', 'W089.csv', 'W094.csv']
+    datafiles = ['W065.csv', 'W066.csv', 'W072.csv', 'W073.csv', 'W074.csv', 'W075.csv',
+                 'W080.csv', 'W083.csv', 'W088.csv', 'W089.csv']
+    # 78 is not bad, 82 is not bad, 88 is a maybe
     if sim:
         # T = 200 # 100
         T = 200
@@ -185,7 +187,7 @@ if __name__ == '__main__':
 
         # model params
     else:
-        num_obs_samples = 5
+        num_obs_samples = 10
         #f = '/tigress/fdamani/neuro_data/data/clean/LearningData_W066_minmaxnorm.txt'
         # data file
         index = int(sys.argv[1])
@@ -228,11 +230,11 @@ if __name__ == '__main__':
         T = x.shape[0]
     # split data into train/test
     ############ initial estimation 
-    num_future_steps = 1
+    num_future_steps = 300
     category_tt_split = 'band'
     num_mc_samples = 10
     ppc_window = 50
-    percent_test = .1
+    percent_test = .2
     features = ['Bias', 'X1', 'X2', 'Choice t-1', 'RW Side t-1', 'X1 t-1', 'X2 t-1']
 
     y_complete = torch.tensor(y.copy(), device=device)
@@ -251,7 +253,7 @@ if __name__ == '__main__':
     # declare model here
 
     # model params
-    init_transition_log_scale = [math.log(1e-1)]# * dim
+    init_transition_log_scale = [math.log(5e-2)]# * dim
     init_prior = ([0.0]*dim, [math.log(1.0)]*dim)
     log_gamma = [math.log(.08)]*dim# .08 1e-10
     beta = 100. # sigmoid(4.) = .9820
@@ -292,6 +294,9 @@ if __name__ == '__main__':
     torch.save(opt_params, output_file+'/model_structs/opt_params.pth')
     torch.save(data, output_file+'/data/data.pth')
 
+
+    import sys
+    sys.exit(0)
     ################### bootstrap ################################################
     num_datasets = 25
     sim_datasets = simulate_datasets(opt_params, model_params_grad, dim, num_obs_samples, num_datasets)

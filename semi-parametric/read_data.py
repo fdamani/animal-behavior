@@ -38,8 +38,8 @@ def read_and_process(num_obs, f, savedir):
 	# raw_data = np.loadtxt(f, skiprows=1, delimiter=',', usecols=(range(0,3)))
 	# header = open(f).readline()[:-1].split(",")
 	inds = np.where(raw_data['trainstg']=='DelayedReward')[0][0]
-	raw_data = raw_data.iloc[inds:]
-	#raw_data = raw_data[raw_data['trainstg'] == 'NoReward']
+	# raw_data = raw_data.iloc[inds:]
+	raw_data = raw_data[raw_data['trainstg'] == 'NoReward']
 	# remove all NaNtr
 	data = raw_data[raw_data['nantr'] == 0].values
 	# ignore nantr and trainstg
@@ -58,7 +58,30 @@ def read_and_process(num_obs, f, savedir):
 	#data = data[0:1000]
 	#data = data[0:10000]
 	#data = data[1000:2000]
+
 	x = data[:, 0:2]
+	y = data[:,4]
+	rw = data[:,2]
+
+	# compute smoothed reward over time
+	rw_avg = np.convolve(rw, np.ones(500))/ 500.0
+	rw_avg = rw_avg[500:-500]
+	plt.cla()
+	plt.plot(rw_avg)
+	plt.savefig(savedir+'/rw_complete.png')
+
+	ind = np.where(rw_avg >= .75)[0][0] + 500
+	x = x[0:ind]
+	y = y[0:ind]
+	rw = rw[0:ind]
+	data = data[0:ind]
+
+	rw_avg = np.convolve(rw, np.ones(500))/ 500.0
+	rw_avg = rw_avg[500:-500]
+	plt.cla()
+	plt.plot(rw_avg)
+	plt.savefig(savedir+'/rw_learning.png')
+
 	# log transform data 
 	x = np.log(x)
 	# standardize data
@@ -66,15 +89,8 @@ def read_and_process(num_obs, f, savedir):
 
 	# normalize x
 	# x = (x - np.mean(x, axis=0)) / np.std(x, axis=0)
-	x = np.concatenate([np.ones((data.shape[0],1)), x],axis=1)
-	y = data[:,4]
-	rw = data[:,2]
+	x = np.concatenate([np.ones((x.shape[0],1)), x],axis=1)
 
-	# plot smoothed reward
-	rw_avg = np.convolve(rw, np.ones(50))/ 50.0
-	rw_avg = rw_avg[50:-50]
-	print rw_avg[-10:], np.where(rw_avg > .75)[0] / float(rw_avg.shape[0])
-	embed()
 	#plt.plot(rw_avg)
 	#plt.show()
 	# plt.savefig(savedir+'/smoothed_reward.png')
