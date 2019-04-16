@@ -38,11 +38,12 @@ from utils import sigmoid
 dtype = torch.float32
 
 output_file = sys.argv[1]
-output_file = output_file + '_'+str(datetime.datetime.now())
-os.makedirs(output_file)
-os.makedirs(output_file+'/model_structs')
-os.makedirs(output_file+'/data')
-os.makedirs(output_file+'/plots')
+output_file = '/tigress/fdamani/neuro_output/exp4/'
+# output_file = output_file + '_'+str(datetime.datetime.now())
+# os.makedirs(output_file)
+# os.makedirs(output_file+'/model_structs')
+# os.makedirs(output_file+'/data')
+# os.makedirs(output_file+'/plots')
 
 
 def to_numpy(tx):
@@ -78,7 +79,7 @@ def estimation(dataset,
     y_complete = y_complete[0:-num_future_steps]
     category_tt_split = 'single'
     y, x, y_future, x_future = train_future_split(y, x, num_future_steps)
-    y_train, y_test, test_inds = train_test_split(y, x, cat=category_tt_split)
+    y_train, y_test, test_inds = train_test_split(y.cpu(), x.cpu(), cat=category_tt_split)
     x = x.clone().detach() #torch.tensor(x, dtype=dtype, device=device)
     y_train = y_train.clone().detach() #torch.tensor(y_train, dtype=dtype, device=device)
     y_test = torch.tensor(y_test, dtype=dtype, device=device)
@@ -86,6 +87,7 @@ def estimation(dataset,
     y_future = y_future.clone().detach() #torch.tensor(y_future, dtype=dtype, device=device)
     x_future = x_future.clone().detach() #torch.tensor(x_future, dtype=dtype, device=device)
 
+    y_train = torch.tensor(y, device=device)
     data = [y_train, x, y_test, test_inds, y_future, x_future, y_complete]
 
 
@@ -183,10 +185,10 @@ if __name__ == '__main__':
 
         # model params
     else:
-        num_obs_samples = 10
+        num_obs_samples = 5
         #f = '/tigress/fdamani/neuro_data/data/clean/LearningData_W066_minmaxnorm.txt'
         # data file
-        index = 0# sys.argv[1]
+        index = int(sys.argv[1])
         rat = datafiles[int(index)]
         print rat
         f = '/tigress/fdamani/neuro_data/data/raw/allrats_withmissing_limitedtrials/csv/'
@@ -194,20 +196,27 @@ if __name__ == '__main__':
         rat = f.split('/')[-1].split('.csv')[0]
         
         # add to dir name
-        savedir += '__obs'+str(num_obs_samples)
-        savedir += '__'+rat
+        output_file += rat
+        output_file += '__obs'+str(num_obs_samples)
+
+        output_file += '_'+str(datetime.datetime.now())
+        os.makedirs(output_file)
+        os.makedirs(output_file+'/model_structs')
+        os.makedirs(output_file+'/data')
+        os.makedirs(output_file+'/plots')
+        savedir = output_file
 
         # os.mkdir(savedir)
-        f = '../data/W066_short.csv'
-        savedir = output_file
+        #f = '../data/W066_short.csv'
+        #savedir = output_file
    
         x, y, rw = read_and_process(num_obs_samples, f, savedir=savedir)
         rw = torch.tensor(rw, dtype=dtype, device=device)
         z_true = None
         true_model_params=None
 
-        x = x[0:5000]
-        y = y[0:5000]
+        #x = x[0:10000]
+        #y = y[0:10000]
 
         # rnn_hiddens = torch.load('hiddens_rnn_7_features.pt')
         # rnn_hiddens = rnn_hiddens.detach().to(device)
@@ -219,11 +228,11 @@ if __name__ == '__main__':
         T = x.shape[0]
     # split data into train/test
     ############ initial estimation 
-    num_future_steps = 10
+    num_future_steps = 1
     category_tt_split = 'band'
     num_mc_samples = 10
     ppc_window = 50
-    percent_test = .2
+    percent_test = .1
     features = ['Bias', 'X1', 'X2', 'Choice t-1', 'RW Side t-1', 'X1 t-1', 'X2 t-1']
 
     y_complete = torch.tensor(y.copy(), device=device)
@@ -242,7 +251,7 @@ if __name__ == '__main__':
     # declare model here
 
     # model params
-    init_transition_log_scale = [math.log(5e-2)]# * dim
+    init_transition_log_scale = [math.log(1e-1)]# * dim
     init_prior = ([0.0]*dim, [math.log(1.0)]*dim)
     log_gamma = [math.log(.08)]*dim# .08 1e-10
     beta = 100. # sigmoid(4.) = .9820
@@ -284,7 +293,7 @@ if __name__ == '__main__':
     torch.save(data, output_file+'/data/data.pth')
 
     ################### bootstrap ################################################
-    num_datasets=10
+    num_datasets = 25
     sim_datasets = simulate_datasets(opt_params, model_params_grad, dim, num_obs_samples, num_datasets)
     bootstrapped_params = {'init_prior': [],
                            'transition_log_scale': [],
@@ -313,19 +322,19 @@ if __name__ == '__main__':
         # if param was estimated in model
         if model_params_grad[k]:
             plt.cla()
-            vx = torch.t(torch.stack(v))
+            vx = torch.stack(v)
             #vx = [to_numpy(el) for el in v]
             fix, ax = plt.subplots()
-            ax.boxplot(vx)
+            ax.boxplot(to_numpy(vx))
             ax.set_axisbelow(True)
             ax.set_xlabel('Feature')
             ax.set_ylabel(k)
             # plot theta hat
             if len(opt_params[k]) == 1:
-                ax.scatter(1, opt_params[k], color='b')
+                ax.scatter(1, to_numpy(opt_params[k]), color='b')
             else:
                 ax.set_xticklabels(features)
-                plt.scatter(features, opt_params[k], color='b')
+                plt.scatter(features, to_numpy(opt_params[k]), color='b')
             # mu, std = compute_mean_and_std(np.array(v))
             # plt.errorbar(x=np.arange(1), y=mu, yerr=2*std, fmt='o')
             # plot theta hat

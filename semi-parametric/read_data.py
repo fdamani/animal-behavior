@@ -35,11 +35,11 @@ dtype = torch.float32
 def read_and_process(num_obs, f, savedir):
 	raw_data = pd.read_csv(f)
 	header = raw_data.columns
-
 	# raw_data = np.loadtxt(f, skiprows=1, delimiter=',', usecols=(range(0,3)))
 	# header = open(f).readline()[:-1].split(",")
-	# limit to NoReward
-	raw_data = raw_data[raw_data['trainstg'] == 'NoReward']
+	inds = np.where(raw_data['trainstg']=='DelayedReward')[0][0]
+	raw_data = raw_data.iloc[inds:]
+	#raw_data = raw_data[raw_data['trainstg'] == 'NoReward']
 	# remove all NaNtr
 	data = raw_data[raw_data['nantr'] == 0].values
 	# ignore nantr and trainstg
@@ -71,8 +71,10 @@ def read_and_process(num_obs, f, savedir):
 	rw = data[:,2]
 
 	# plot smoothed reward
-	rw_avg = np.convolve(rw, np.ones(500))/ 500.0
-	rw_avg = rw_avg[500:-500]
+	rw_avg = np.convolve(rw, np.ones(50))/ 50.0
+	rw_avg = rw_avg[50:-50]
+	print rw_avg[-10:], np.where(rw_avg > .75)[0] / float(rw_avg.shape[0])
+	embed()
 	#plt.plot(rw_avg)
 	#plt.show()
 	# plt.savefig(savedir+'/smoothed_reward.png')

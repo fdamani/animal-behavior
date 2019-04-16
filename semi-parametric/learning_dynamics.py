@@ -87,8 +87,8 @@ class LearningDynamicsModel(object):
             x = torch.cat([intercept, x], dim=2)
         
         z = [self.sample_init_prior()]
-        z[0][0][1] = torch.tensor(-1.)
-        z[0][0][2] = torch.tensor(1.)
+        z[0][0][1] = torch.tensor(-1., device=device)
+        z[0][0][2] = torch.tensor(1., device=device)
         # set second value to -1.
         # set 3rd value to +1
 
@@ -336,7 +336,7 @@ class LearningDynamicsModel(object):
         # grad of logistic regression: x_n(y_n - sigmoid(z^t x))
         y_1 = torch.ones(y.size(0), 1, device=device)
         grad_log_policy_y1 = self.grad_rat_policy(y_1, x, z)
-        y_0 = torch.zeros(y.size(0), 1)
+        y_0 = torch.zeros(y.size(0), 1, device=device)
         grad_log_policy_y0 = self.grad_rat_policy(y_0, x, z)
         per_sample_gradient = prob_y_1_given_x_z * grad_log_policy_y1 * r_y_1_x + \
             prob_y_0_given_x_z * grad_log_policy_y0 * r_y_0_x
@@ -366,7 +366,7 @@ class LearningDynamicsModel(object):
         y_1 = torch.ones(y.size(0), y.size(1), device=device)
         grad_log_policy_y1 = self.grad_rat_policy_vec(y_1, x, z)
 
-        y_0 = torch.zeros(y.size(0), y.size(1))
+        y_0 = torch.zeros(y.size(0), y.size(1), device=device)
         grad_log_policy_y0 = self.grad_rat_policy_vec(y_0, x, z)
 
         per_sample_gradient = prob_y_1_given_x_z[:,:,None] * grad_log_policy_y1 * r_y_1_x[:,:,None] + \
