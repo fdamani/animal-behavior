@@ -144,7 +144,7 @@ class Inference(object):
             self.var_params = self.vi.init_var_params(self.T, self.dim, z_true[0:-1])
         else:
             print 'specify valid init option.'
-        self.iters = 100000
+        self.iters = 30000
         #lr = 1e-4
 
         self.opt_params = {'var_mu': self.var_params[0], 
@@ -156,7 +156,7 @@ class Inference(object):
                 self.opt_params[k] = self.model.params[k]
         #self.opt_params = [self.var_params[0], self.var_params[1], self.model.transition_log_scale]
         #self.optimizer =  torch.optim.SGD(self.opt_params.values(), lr=1e-2, momentum=.9)
-        self.optimizer =  torch.optim.Adam(self.opt_params.values(), lr=1e-2)
+        self.optimizer =  torch.optim.Adam(self.opt_params.values(), lr=1e-3)
 
         self.ev = Evaluate(self.data, self.model, savedir='', num_obs_samples=self.num_obs_samples)
         self.num_test = self.data[2].shape[0]
@@ -169,7 +169,7 @@ class Inference(object):
         # initialize to all ones = smooth.
         z = torch.tensor(torch.ones(self.T, self.dim, device=device), requires_grad=True, device=device)
         y, x = self.unpack_data(self.data)
-        self.map_iters = 8000
+        self.map_iters = 4000
         self.opt_params = [z]
         self.map_optimizer =  torch.optim.Adam(self.opt_params, lr=1e-2)
         for t in range(self.map_iters):

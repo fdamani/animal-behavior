@@ -38,7 +38,10 @@ from utils import sigmoid
 dtype = torch.float32
 
 output_file = sys.argv[1]
-output_file = '/tigress/fdamani/neuro_output/exp1/'
+if torch.cuda.is_available():
+    output_file = '/tigress/fdamani/neuro_output/exp1/'
+else:
+    output_file = '../output/exp1'
 # output_file = output_file + '_'+str(datetime.datetime.now())
 # os.makedirs(output_file)
 # os.makedirs(output_file+'/model_structs')
@@ -131,8 +134,8 @@ if __name__ == '__main__':
 
     # datafiles = ['W065.csv', 'W066.csv', 'W068.csv', 'W072.csv', 'W073.csv', 'W074.csv', 'W075.csv', 'W078.csv',
     #              'W080.csv', 'W081.csv', 'W082.csv', 'W083.csv', 'W088.csv', 'W089.csv', 'W094.csv']
-    datafiles = ['W065.csv', 'W066.csv', 'W072.csv', 'W073.csv', 'W074.csv', 'W075.csv',
-                 'W080.csv', 'W083.csv', 'W088.csv', 'W089.csv']
+    datafiles = ['W065.csv', 'W066.csv', 'W072.csv', 'W073.csv', 'W074.csv', 'W075.csv', 'W078.csv',
+                 'W080.csv', 'W082.csv', 'W083.csv', 'W088.csv', 'W089.csv']
     # 78 is not bad, 82 is not bad, 88 is a maybe
     if sim:
         # T = 200 # 100
@@ -193,7 +196,10 @@ if __name__ == '__main__':
         index = int(sys.argv[1])
         rat = datafiles[int(index)]
         print rat
-        f = '/tigress/fdamani/neuro_data/data/raw/allrats_withmissing_limitedtrials/csv/'
+        if torch.cuda.is_available():
+            f = '/tigress/fdamani/neuro_data/data/raw/allrats_withmissing_limitedtrials/csv/'
+        else:
+            f = '../data/'
         f += rat
         rat = f.split('/')[-1].split('.csv')[0]
         
@@ -254,7 +260,7 @@ if __name__ == '__main__':
 
     # model params
     init_transition_log_scale = [math.log(5e-2)]# * dim
-    init_prior = ([0.0]*dim, [math.log(1.0)]*dim)
+    init_prior = ([0.0]*dim, [math.log(10.0)]*dim)
     log_gamma = [math.log(.08)]*dim# .08 1e-10
     beta = 100. # sigmoid(4.) = .9820
     log_alpha = math.log(.1)
@@ -294,9 +300,6 @@ if __name__ == '__main__':
     torch.save(opt_params, output_file+'/model_structs/opt_params.pth')
     torch.save(data, output_file+'/data/data.pth')
 
-
-    import sys
-    sys.exit(0)
     ################### bootstrap ################################################
     num_datasets = 25
     sim_datasets = simulate_datasets(opt_params, model_params_grad, dim, num_obs_samples, num_datasets)
