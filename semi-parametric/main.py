@@ -39,7 +39,7 @@ dtype = torch.float32
 
 output_file = sys.argv[1]
 if torch.cuda.is_available():
-    output_file = '/tigress/fdamani/neuro_output/exp1/'
+    output_file = '/tigress/fdamani/neuro_output/exp5_l1_single/'
 else:
     output_file = '../output/exp1'
 # output_file = output_file + '_'+str(datetime.datetime.now())
@@ -47,7 +47,6 @@ else:
 # os.makedirs(output_file+'/model_structs')
 # os.makedirs(output_file+'/data')
 # os.makedirs(output_file+'/plots')
-
 
 def to_numpy(tx):
     return tx.detach().cpu().numpy()
@@ -205,9 +204,9 @@ if __name__ == '__main__':
         
         # add to dir name
         output_file += rat
-        output_file += '__obs'+str(num_obs_samples)
+        # output_file += '__obs'+str(num_obs_samples)
 
-        output_file += '_'+str(datetime.datetime.now())
+        # output_file += '_'+str(datetime.datetime.now())
         os.makedirs(output_file)
         os.makedirs(output_file+'/model_structs')
         os.makedirs(output_file+'/data')
