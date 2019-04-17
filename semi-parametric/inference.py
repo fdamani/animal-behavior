@@ -112,7 +112,8 @@ class Inference(object):
                  num_mc_samples,
                  ppc_window,
                  z_true=None,
-                 true_model_params=None):
+                 true_model_params=None,
+                 iters=30000):
         self.data = data
         self.dim = self.data[1].size(2)
         self.T = self.data[1].size(0)
@@ -144,7 +145,7 @@ class Inference(object):
             self.var_params = self.vi.init_var_params(self.T, self.dim, z_true[0:-1])
         else:
             print 'specify valid init option.'
-        self.iters = 30000
+        self.iters = iters
         #lr = 1e-4
 
         self.opt_params = {'var_mu': self.var_params[0], 
