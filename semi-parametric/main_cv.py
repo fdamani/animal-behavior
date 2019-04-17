@@ -39,7 +39,7 @@ dtype = torch.float32
 
 output_file = sys.argv[1]
 if torch.cuda.is_available():
-    output_file = '/tigress/fdamani/neuro_output/exp1/'
+    output_file = '/tigress/fdamani/neuro_output/exp3/'
 else:
     output_file = '../output/exp1'
 # output_file = output_file + '_'+str(datetime.datetime.now())
@@ -100,7 +100,7 @@ def estimation(dataset,
     os.makedirs(boot_output_file+'/plots')
 
 
-    scale_cands = [math.log(1e-3), math.log(5e-3), math.log(1e-2), math.log(5e-2), math.log(1e-1)]
+    scale_cands = [math.log(1e-3), math.log(5e-3), math.log(.01), math.log(.025), math.log(.05), math.log(.075), math.log(1e-1)]
     cv_accuracy = []
     cv_opt_params = []
     for val in scale_cands:
@@ -120,16 +120,20 @@ def estimation(dataset,
                               num_mc_samples=num_mc_samples,
                               ppc_window=50,
                               z_true=z_true,
-                              true_model_params=true_model_params) # pass in just for figures
+                              true_model_params=true_model_params,
+                              iters=1001) # pass in just for figures
 
         opt_params = inference.optimize()
         cv_opt_params.append(opt_params)
         ev = Evaluate(data, model, savedir='', num_obs_samples=num_obs_samples)
-        train_acc, test_acc = ev.accuracy(opt_params)
-        cv_accuracy.append(test_acc)
+        test_post_predictive = ev.valid_loss(opt_params)
+        print val, test_post_predictive
+
+        # train_acc, test_acc = ev.accuracy(opt_params)
+        cv_accuracy.append(test_post_predictive)
     
-    cv_scale = scale_cands[np.argmax(cv_accuracy)]
-    opt_params = cv_opt_params[np.argmax(cv_accuracy)]
+    cv_scale = scale_cands[np.argmin(cv_accuracy)]
+    opt_params = cv_opt_params[np.argmin(cv_accuracy)]
     model_params['transition_log_scale'] = cv_scale
 
     torch.save(opt_params, boot_output_file+'/model_structs/opt_params.npy')
@@ -298,7 +302,7 @@ if __name__ == '__main__':
     torch.save(model_params_grad, output_file+'/model_structs/model_params_grad.pth')
     torch.save(model_params, output_file+'/model_structs/init_model_params.pth')
 
-    scale_cands = [math.log(1e-3), math.log(5e-3), math.log(1e-2), math.log(5e-2), math.log(1e-1)]
+    scale_cands = [math.log(1e-3), math.log(5e-3), math.log(.01), math.log(.025), math.log(.05), math.log(.075), math.log(1e-1)]
     cv_accuracy = []
     cv_opt_params = []
     for val in scale_cands:
@@ -319,15 +323,41 @@ if __name__ == '__main__':
                               num_mc_samples=num_mc_samples,
                               ppc_window=ppc_window, 
                               z_true=z_true,
-                              true_model_params=true_model_params) # pass in just for figures
+                              true_model_params=true_model_params,
+                              iters=1001) # pass in just for figures
         opt_params = inference.optimize()
         cv_opt_params.append(opt_params)
         ev = Evaluate(data, model, savedir='', num_obs_samples=num_obs_samples)
-        train_acc, test_acc = ev.accuracy(opt_params)
-        cv_accuracy.append(test_acc)
-    cv_scale = scale_cands[np.argmax(cv_accuracy)]
-    opt_params = cv_opt_params[np.argmax(cv_accuracy)]
+        test_post_predictive = ev.valid_loss(opt_params)
+        print val, test_post_predictive
+        cv_accuracy.append(test_post_predictive)
+
+    cv_scale = scale_cands[np.argmin(cv_accuracy)]
+    print cv_scale
+    opt_params = cv_opt_params[np.argmin(cv_accuracy)]
     model_params['transition_log_scale'] = cv_scale
+
+
+    init_transition_log_scale = cv_scale
+    model_params = {'init_prior': init_prior,
+            'transition_log_scale': init_transition_log_scale,
+            'log_gamma': log_gamma,
+            'beta': beta,
+            'log_alpha': log_alpha}
+
+    model = LearningDynamicsModel(model_params, model_params_grad, dim)
+    inference = Inference(data, 
+                          model, 
+                          model_params_grad, 
+                          savedir=output_file, 
+                          num_obs_samples=num_obs_samples, 
+                          num_future_steps=num_future_steps, 
+                          num_mc_samples=num_mc_samples,
+                          ppc_window=ppc_window, 
+                          z_true=z_true,
+                          true_model_params=true_model_params)
+    opt_params = inference.optimize()
+
 
     for k,v in model_params_grad.items():
         if v == False:
