@@ -132,10 +132,10 @@ if __name__ == '__main__':
     import datetime
     savedir += str(datetime.datetime.now())
 
-    # datafiles = ['W065.csv', 'W066.csv', 'W068.csv', 'W072.csv', 'W073.csv', 'W074.csv', 'W075.csv', 'W078.csv',
-    #              'W080.csv', 'W081.csv', 'W082.csv', 'W083.csv', 'W088.csv', 'W089.csv', 'W094.csv']
-    datafiles = ['W065.csv', 'W066.csv', 'W072.csv', 'W073.csv', 'W074.csv', 'W075.csv', 'W078.csv',
-                 'W080.csv', 'W082.csv', 'W083.csv', 'W088.csv', 'W089.csv']
+    datafiles = ['W065.csv', 'W066.csv', 'W068.csv', 'W072.csv', 'W073.csv', 'W074.csv', 'W075.csv', 'W078.csv',
+                 'W080.csv', 'W081.csv', 'W082.csv', 'W083.csv', 'W088.csv', 'W089.csv', 'W094.csv']
+    # datafiles = ['W065.csv', 'W066.csv', 'W072.csv', 'W073.csv', 'W074.csv', 'W075.csv', 'W078.csv',
+    #              'W080.csv', 'W082.csv', 'W083.csv', 'W088.csv', 'W089.csv']
     # 78 is not bad, 82 is not bad, 88 is a maybe
     if sim:
         # T = 200 # 100
@@ -236,7 +236,7 @@ if __name__ == '__main__':
         T = x.shape[0]
     # split data into train/test
     ############ initial estimation 
-    num_future_steps = 300
+    num_future_steps = 1
     category_tt_split = 'band'
     num_mc_samples = 10
     ppc_window = 50
@@ -260,7 +260,7 @@ if __name__ == '__main__':
 
     # model params
     init_transition_log_scale = [math.log(5e-2)]# * dim
-    init_prior = ([0.0]*dim, [math.log(10.0)]*dim)
+    init_prior = ([0.0]*dim, [math.log(1.0)]*dim)
     log_gamma = [math.log(.08)]*dim# .08 1e-10
     beta = 100. # sigmoid(4.) = .9820
     log_alpha = math.log(.1)
