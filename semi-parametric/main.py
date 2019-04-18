@@ -38,10 +38,15 @@ from utils import sigmoid
 dtype = torch.float32
 
 output_file = sys.argv[1]
+first_half = False
 if torch.cuda.is_available():
     output_file = '/tigress/fdamani/neuro_output/exp5_l1_single/'
 else:
-    output_file = '../output/exp1'
+    output_file = ''
+    if first_half:
+        output_file = '../output/l2_per_param_first_half/'
+    else:
+        output_file = '../output/l2_per_param_second_half/'
 # output_file = output_file + '_'+str(datetime.datetime.now())
 # os.makedirs(output_file)
 # os.makedirs(output_file+'/model_structs')
@@ -218,6 +223,16 @@ if __name__ == '__main__':
         #savedir = output_file
    
         x, y, rw = read_and_process(num_obs_samples, f, savedir=savedir)
+        half = int(x.shape[0]/2)
+        if first_half:
+            x = x[:half]
+            y = y[:half]
+            rw = y[:half]
+        else:
+            x = x[half:]
+            y = y[half:]
+            rw = y[half:]
+
         rw = torch.tensor(rw, dtype=dtype, device=device)
         z_true = None
         true_model_params=None
@@ -261,7 +276,7 @@ if __name__ == '__main__':
     init_transition_log_scale = [math.log(5e-2)]# * dim
     init_prior = ([0.0]*dim, [math.log(1.0)]*dim)
     log_gamma = [math.log(.08)]#*dim# .08 1e-10
-    beta = -100. # sigmoid(4.) = .9820
+    beta = 100. # sigmoid(4.) = .9820
     log_alpha = math.log(.1)
 
     model_params = {'init_prior': init_prior,
