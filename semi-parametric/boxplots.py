@@ -36,14 +36,13 @@ import utils
 from utils import sigmoid
 #dtype = torch.cuda.float if torch.cuda.is_available() else torch.float
 dtype = torch.float32
-input_file = '/tigress/fdamani/neuro_output/exp1/'
-
+input_file = '/tigress/fdamani/neuro_output/exp8_l2_per_feature_first_half/'
 
 import os
 boots = []
 rats = []
-#vble = 'log_gamma'
-vble = 'log_alpha'
+vble = 'log_gamma'
+#vble = 'log_alpha'
 for file in os.listdir(input_file):
 	rats.append(file)
 	try:
@@ -62,7 +61,10 @@ if len(boots.shape) == 3:
 		ax.boxplot(np.exp(boots[i]))
 		ax.set_axisbelow(True)
 		ax.set_xlabel('Rats')
-		ax.set_ylabel('Alpha')
+		if vble == 'log_gamma':
+			ax.set_ylabel('Gamma')
+		else:
+			ax.set_ylabel('Alpha')
 		figure = plt.gcf() # get current figure
 		figure.set_size_inches(8, 6)
 		plt.savefig(input_file+'/'+vble+'_'+str(i)+'_'+'bootstrap.png', dpi=200)
@@ -72,7 +74,10 @@ else:
 	ax.boxplot(np.exp(np.transpose(boots)))
 	ax.set_axisbelow(True)
 	ax.set_xlabel('Rats')
-	ax.set_ylabel('Alpha')
+	if vble == 'log_gamma':
+		ax.set_ylabel('Gamma')
+	else:
+		ax.set_ylabel('Alpha')
 	figure = plt.gcf() # get current figure
 	figure.set_size_inches(8, 6)
 	plt.savefig(input_file+'/'+vble+'_'+'bootstrap.png', dpi=200)

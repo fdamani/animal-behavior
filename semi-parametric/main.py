@@ -38,9 +38,9 @@ from utils import sigmoid
 dtype = torch.float32
 
 output_file = sys.argv[1]
-first_half = False
+first_half = True
 if torch.cuda.is_available():
-    output_file = '/tigress/fdamani/neuro_output/exp5_l1_single/'
+    output_file = '/tigress/fdamani/neuro_output/exp10_l2_per_feature_1_trial_per_obs/'
 else:
     output_file = ''
     if first_half:
@@ -136,8 +136,12 @@ if __name__ == '__main__':
     import datetime
     savedir += str(datetime.datetime.now())
 
-    datafiles = ['W065.csv', 'W066.csv', 'W068.csv', 'W072.csv', 'W073.csv', 'W074.csv', 'W075.csv', 'W078.csv',
-                 'W080.csv', 'W081.csv', 'W082.csv', 'W083.csv', 'W088.csv', 'W089.csv', 'W094.csv']
+    # datafiles = ['W065.csv', 'W066.csv', 'W068.csv', 'W072.csv', 'W073.csv', 'W074.csv', 'W075.csv', 'W078.csv',
+    #              'W080.csv', 'W081.csv', 'W082.csv', 'W083.csv', 'W088.csv', 'W089.csv', 'W094.csv']
+
+    datafiles = ['W074.csv', 'W075.csv', 'W078.csv', 'W080.csv', 'W081.csv', 'W082.csv', 
+                    'W083.csv', 'W088.csv', 'W089.csv', 'W094.csv']
+
     # datafiles = ['W065.csv', 'W066.csv', 'W072.csv', 'W073.csv', 'W074.csv', 'W075.csv', 'W078.csv',
     #              'W080.csv', 'W082.csv', 'W083.csv', 'W088.csv', 'W089.csv']
     # 78 is not bad, 82 is not bad, 88 is a maybe
@@ -194,7 +198,7 @@ if __name__ == '__main__':
 
         # model params
     else:
-        num_obs_samples = 10
+        num_obs_samples = 1
         #f = '/tigress/fdamani/neuro_data/data/clean/LearningData_W066_minmaxnorm.txt'
         # data file
         index = int(sys.argv[1])
@@ -223,15 +227,15 @@ if __name__ == '__main__':
         #savedir = output_file
    
         x, y, rw = read_and_process(num_obs_samples, f, savedir=savedir)
-        half = int(x.shape[0]/2)
-        if first_half:
-            x = x[:half]
-            y = y[:half]
-            rw = y[:half]
-        else:
-            x = x[half:]
-            y = y[half:]
-            rw = y[half:]
+        # half = int(x.shape[0]/2)
+        # if first_half:
+        #     x = x[:half]
+        #     y = y[:half]
+        #     rw = y[:half]
+        # else:
+        #     x = x[half:]
+        #     y = y[half:]
+        #     rw = y[half:]
 
         rw = torch.tensor(rw, dtype=dtype, device=device)
         z_true = None
@@ -250,7 +254,7 @@ if __name__ == '__main__':
         T = x.shape[0]
     # split data into train/test
     ############ initial estimation 
-    num_future_steps = 1
+    num_future_steps = 10
     category_tt_split = 'band'
     num_mc_samples = 10
     ppc_window = 50
@@ -275,7 +279,7 @@ if __name__ == '__main__':
     # model params
     init_transition_log_scale = [math.log(5e-2)]# * dim
     init_prior = ([0.0]*dim, [math.log(1.0)]*dim)
-    log_gamma = [math.log(.08)]#*dim# .08 1e-10
+    log_gamma = [math.log(.08)]*dim# .08 1e-10
     beta = 100. # sigmoid(4.) = .9820
     log_alpha = math.log(.1)
 

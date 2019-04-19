@@ -1,5 +1,5 @@
 #!/bin/bash
-END=14
+END=9
 for i in $(seq 0 $END)
 do
 	declare -a ind=$i
