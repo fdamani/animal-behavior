@@ -362,6 +362,10 @@ class LearningDynamicsModel(object):
         r_y_1_x = self.rat_reward_vec(torch.tensor([1.], device=device), x)
         r_y_0_x = 1.0 - r_y_1_x
 
+        # embed()
+        # actual_rewards = self.rat_reward_vec(y, x)
+        # rw_avg = np.convolve(actual_rewards, np.ones(10))/ 10.0
+
         # grad of logistic regression: x_n(y_n - sigmoid(z^t x))
         y_1 = torch.ones(y.size(0), y.size(1), device=device)
         grad_log_policy_y1 = self.grad_rat_policy_vec(y_1, x, z)

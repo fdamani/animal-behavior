@@ -37,10 +37,10 @@ from utils import sigmoid
 #dtype = torch.cuda.float if torch.cuda.is_available() else torch.float
 dtype = torch.float32
 
-output_file = sys.argv[1]
+#output_file = sys.argv[1]
 first_half = True
 if torch.cuda.is_available():
-    output_file = '/tigress/fdamani/neuro_output/exp10_l2_per_feature_1_trial_per_obs/'
+    output_file = '/tigress/fdamani/neuro_output/vi_diagnostic'
 else:
     output_file = ''
     if first_half:
@@ -146,6 +146,11 @@ if __name__ == '__main__':
     #              'W080.csv', 'W082.csv', 'W083.csv', 'W088.csv', 'W089.csv']
     # 78 is not bad, 82 is not bad, 88 is a maybe
     if sim:
+        output_file = output_file + '_'+str(datetime.datetime.now())
+        os.makedirs(output_file)
+        os.makedirs(output_file+'/model_structs')
+        os.makedirs(output_file+'/data')
+        os.makedirs(output_file+'/plots')
         # T = 200 # 100
         T = 200
         # time-series model
@@ -175,9 +180,9 @@ if __name__ == '__main__':
         y, x, z_true = model.sample(T=T, num_obs_samples=num_obs_samples)
         
         rw = torch.mean(model.rat_reward_vec(y, x), dim=1)
-        window=100
-        rw_avg = np.convolve(rw, np.ones(window))/ float(window)
-        rw_avg = rw_avg[window:-window]
+        # window=100
+        # rw_avg = np.convolve(rw, np.ones(window))/ float(window)
+        #rw_avg = rw_avg[window:-window]
         # plt.plot(rw_avg)
         # plt.show()
 
@@ -215,7 +220,7 @@ if __name__ == '__main__':
         output_file += rat
         # output_file += '__obs'+str(num_obs_samples)
 
-        # output_file += '_'+str(datetime.datetime.now())
+        output_file += '_'+str(datetime.datetime.now())
         os.makedirs(output_file)
         os.makedirs(output_file+'/model_structs')
         os.makedirs(output_file+'/data')
@@ -277,9 +282,9 @@ if __name__ == '__main__':
     # declare model here
 
     # model params
-    init_transition_log_scale = [math.log(5e-2)]# * dim
+    init_transition_log_scale = [math.log(1e-2)]# * dim
     init_prior = ([0.0]*dim, [math.log(1.0)]*dim)
-    log_gamma = [math.log(.08)]*dim# .08 1e-10
+    log_gamma = [math.log(.08)] #*dim# .08 1e-10
     beta = 100. # sigmoid(4.) = .9820
     log_alpha = math.log(.1)
 
@@ -291,9 +296,9 @@ if __name__ == '__main__':
     
     model_params_grad = {'init_prior': False,
                     'transition_log_scale': False,
-                    'log_gamma': True,
+                    'log_gamma': False,
                     'beta': False,
-                    'log_alpha': True}
+                    'log_alpha': False}
 
     torch.save(model_params_grad, output_file+'/model_structs/model_params_grad.pth')
     torch.save(model_params, output_file+'/model_structs/init_model_params.pth')
@@ -317,6 +322,8 @@ if __name__ == '__main__':
 
     torch.save(opt_params, output_file+'/model_structs/opt_params.pth')
     torch.save(data, output_file+'/data/data.pth')
+
+    sys.exit(0)
 
     ################### bootstrap ################################################
     num_datasets = 25

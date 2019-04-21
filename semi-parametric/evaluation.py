@@ -110,7 +110,7 @@ class Evaluate(object):
     def return_train_ind(self, y):
         return y[:,0] != -1
 
-    def valid_loss(self, opt_params):
+    def valid_loss(self, opt_params, num_mc_samples=25):
         '''
             TODO:
             1. monte carlo approx by averaging over multiple trajectories
@@ -142,7 +142,6 @@ class Evaluate(object):
         var_loc = var_loc.clone().detach()
         var_log_scale = var_log_scale.clone().detach()
         posterior_dist = Normal(var_loc, torch.exp(var_log_scale))
-        num_mc_samples = 25
         # expected_test_likelihood = 0
         # expected_train_probs = 0
         # expected_test_probs = 0

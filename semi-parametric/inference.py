@@ -170,9 +170,9 @@ class Inference(object):
         # initialize to all ones = smooth.
         z = torch.tensor(torch.ones(self.T, self.dim, device=device), requires_grad=True, device=device)
         y, x = self.unpack_data(self.data)
-        self.map_iters = 4000
+        self.map_iters = 2000 #4000
         self.opt_params = [z]
-        self.map_optimizer =  torch.optim.Adam(self.opt_params, lr=1e-2)
+        self.map_optimizer =  torch.optim.Adam(self.opt_params, lr=1e-1)
         for t in range(self.map_iters):
             output = -self.model.log_joint(y, x, z)
             self.map_optimizer.zero_grad()
@@ -223,7 +223,7 @@ class Inference(object):
             self.optimizer.step()
             for k, v in curr_model_params.items():
                 curr_model_params[k].append([el.item() for el in self.opt_params[k].flatten()])
-            if t % 500 == 0:
+            if t % 50 == 0:
                 # printing
                 print 'iter: ', t, 'loss: %.2f ' % output.item(), 
                 for k,v in self.model_params_grad.items():
@@ -322,7 +322,7 @@ class MeanFieldVI(object):
         x = data[1]
         return y, x
 
-    def forward(self, data, var_params, itr):
+    def forward(self, data, var_params, itr, num_samples=1):
         '''
             useful for analytic kl  kl = torch.distributions.kl.kl_divergence(z_dist, self.prior).sum(-1)
         '''
@@ -332,12 +332,12 @@ class MeanFieldVI(object):
         #cov = torch.diag(torch.exp(log_scale))**2
         #scale_tril = cov.tril()
         #var_dist = MultivariateNormal(loc, scale_tril=scale_tril)
-        samples = var_dist.rsample(torch.Size((self.num_samples,)))
-        data_term = self.model.log_joint(y, x, samples[0])
-        # data_terms = torch.empty(self.num_samples, device=device)
-        # for i in range(len(samples)):
-        #     data_terms[i] = self.model.log_joint(y, x, samples[i])
-        # data_term = torch.mean(data_terms)
+        samples = var_dist.rsample(torch.Size((num_samples,)))
+        #data_term = self.model.log_joint(y, x, samples[0])
+        data_terms = torch.empty(num_samples, device=device)
+        for i in range(len(samples)):
+            data_terms[i] = self.model.log_joint(y, x, samples[i])
+        data_term = torch.mean(data_terms)
         entropy = torch.sum(var_dist.entropy())
         return (data_term + entropy)
 
