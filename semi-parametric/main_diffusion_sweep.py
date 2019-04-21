@@ -153,12 +153,12 @@ if __name__ == '__main__':
         os.makedirs(output_file+'/data')
         os.makedirs(output_file+'/plots')
         # T = 200 # 100
-        T = 500
+        T = 1000
         # time-series model
         # sim model parameters
         dim = 3
         init_prior = ([0.0]*dim, [math.log(1.0)]*dim)
-        transition_log_scale = [math.log(1e-2)]# * dim 2e-1
+        transition_log_scale = [math.log(5e-2)]# * dim 2e-1
         #log_gamma = math.log(0.08)
         log_gamma = math.log(1e-10)
         #log_gamma = math.log(0.00000004)
@@ -179,7 +179,7 @@ if __name__ == '__main__':
                 'beta': False,
                 'log_alpha': False}
         model = LearningDynamicsModel(true_model_params, model_params_grad, dim=3)
-        num_obs_samples = 1
+        num_obs_samples = 70
         y, x, z_true = model.sample(T=T, num_obs_samples=num_obs_samples)
         
         rw = torch.mean(model.rat_reward_vec(y, x), dim=1)
@@ -194,7 +194,8 @@ if __name__ == '__main__':
         z_true = z_true.detach().cpu().numpy()
         plt.cla()
         plt.plot(z_true)
-        plt.savefig(output_file+'/plots/sim_z.png')
+        plt.show()
+        #plt.savefig(output_file+'/plots/sim_z.png')
 
         # rw = torch.mean(model.rat_reward_vec(torch.tensor(y, device=device), torch.tensor(x,device=device)), dim=1)
         # ppc_window=100
@@ -262,7 +263,7 @@ if __name__ == '__main__':
         T = x.shape[0]
     # split data into train/test
     ############ initial estimation 
-    num_future_steps = 75
+    num_future_steps = 10
     category_tt_split = 'band'
     num_mc_samples = 10
     ppc_window = 50
@@ -288,7 +289,8 @@ if __name__ == '__main__':
     #scales = [math.log(1e-3), math.log(1e-2), math.log(1e-1), math.log(1e0), math.log(1e1)]
     #scales = [1e-2, 1e-1]
     #scales = np.arange(start=5e-3, stop=1e-1, step=.05)
-    scales = [1e-3, 1e-2, 1e-1, 1e0, 1e1]
+    # scales = [1e-2, 5e-2, 1e-1, 1e0]
+    scales = [1e-1]
     #scales = [2e-1]
     # scales = [0.4]
     elbo = []
@@ -297,7 +299,7 @@ if __name__ == '__main__':
         print scale
         # model params
         init_transition_log_scale = [math.log(scale)]
-        init_prior = ([0.0]*dim, [math.log(1.0)]*dim)
+        init_prior = ([0.0]*dim, [math.log(10.0)]*dim)
         #log_gamma = [math.log(.08)] #*dim# .08 1e-10
         log_gamma = [math.log(1e-10)]
         beta = 100. # sigmoid(4.) = .9820
@@ -311,7 +313,7 @@ if __name__ == '__main__':
                         'log_alpha': log_alpha}
         
         model_params_grad = {'init_prior': False,
-                        'transition_log_scale': False,
+                        'transition_log_scale': True,
                         'log_gamma': False,
                         'beta': False,
                         'log_alpha': False}
@@ -330,9 +332,9 @@ if __name__ == '__main__':
                               ppc_window=ppc_window, 
                               z_true=z_true,
                               true_model_params=true_model_params,
-                              iters=2000) # pass in just for figures
+                              iters=70000) # pass in just for figures
         opt_params = inference.optimize()
-        loss = -inference.vi.forward(inference.train_data, inference.var_params, 10, num_samples=100) / float(inference.num_train)
+        loss = -inference.vi.forward_multiple_mcs(inference.train_data, inference.var_params, 10, num_samples=100) / float(inference.num_train)
         test_post_predictive = inference.ev.valid_loss(opt_params, num_mc_samples=100)
         valid_post_pred.append(-test_post_predictive.item())
 
@@ -345,10 +347,12 @@ if __name__ == '__main__':
 
         torch.save(opt_params, output_file+'/model_structs/opt_params.pth')
         torch.save(data, output_file+'/data/data.pth')
-        print 'gpu usage: ', torch.cuda.memory_allocated(device) /1e9
+        if torch.cuda.is_available():
+            print 'gpu usage: ', torch.cuda.memory_allocated(device) /1e9
         del opt_params
         del loss
-        print 'gpu usage: ', torch.cuda.memory_allocated(device) /1e9
+        if torch.cuda.is_available():
+            print 'gpu usage: ', torch.cuda.memory_allocated(device) /1e9
 
     plt.cla()
     plt.plot(scales, elbo)

@@ -156,8 +156,8 @@ class Inference(object):
             if v == True:
                 self.opt_params[k] = self.model.params[k]
         #self.opt_params = [self.var_params[0], self.var_params[1], self.model.transition_log_scale]
-        #self.optimizer =  torch.optim.SGD(self.opt_params.values(), lr=1e-2, momentum=.9)
-        self.optimizer =  torch.optim.Adam(self.opt_params.values(), lr=1e-3)
+        self.optimizer =  torch.optim.SGD(self.opt_params.values(), lr=5e-1, momentum=.9)
+        #self.optimizer =  torch.optim.Adam(self.opt_params.values(), lr=1e-2)
 
         self.ev = Evaluate(self.data, self.model, savedir='', num_obs_samples=self.num_obs_samples)
         self.num_test = self.data[2].shape[0]
@@ -172,7 +172,7 @@ class Inference(object):
         y, x = self.unpack_data(self.data)
         self.map_iters = 2000 #4000
         self.opt_params = [z]
-        self.map_optimizer =  torch.optim.Adam(self.opt_params, lr=1e-1)
+        self.map_optimizer =  torch.optim.Adam(self.opt_params, lr=1e-2)
         for t in range(self.map_iters):
             output = -self.model.log_joint(y, x, z)
             self.map_optimizer.zero_grad()
@@ -223,7 +223,7 @@ class Inference(object):
             self.optimizer.step()
             for k, v in curr_model_params.items():
                 curr_model_params[k].append([el.item() for el in self.opt_params[k].flatten()])
-            if t % 50 == 0:
+            if t % 250 == 0:
                 # printing
                 print 'iter: ', t, 'loss: %.2f ' % output.item(), 
                 for k,v in self.model_params_grad.items():
@@ -333,6 +333,21 @@ class MeanFieldVI(object):
         #scale_tril = cov.tril()
         #var_dist = MultivariateNormal(loc, scale_tril=scale_tril)
         samples = var_dist.rsample(torch.Size((num_samples,)))
+        data_term = self.model.log_joint(y, x, samples[0])
+        entropy = torch.sum(var_dist.entropy())
+        return (data_term + entropy)
+
+    def forward_multiple_mcs(self, data, var_params, itr, num_samples=1):
+        '''
+            useful for analytic kl  kl = torch.distributions.kl.kl_divergence(z_dist, self.prior).sum(-1)
+        '''
+        y, x = self.unpack_data(data)
+        loc, log_scale = self.unpack_var_params(var_params)
+        var_dist = Normal(loc, torch.exp(log_scale))
+        #cov = torch.diag(torch.exp(log_scale))**2
+        #scale_tril = cov.tril()
+        #var_dist = MultivariateNormal(loc, scale_tril=scale_tril)
+        samples = var_dist.rsample(torch.Size((num_samples,)))
         #data_term = self.model.log_joint(y, x, samples[0])
         data_terms = torch.empty(num_samples, device=device)
         for i in range(len(samples)):
@@ -340,7 +355,6 @@ class MeanFieldVI(object):
         data_term = torch.mean(data_terms)
         entropy = torch.sum(var_dist.entropy())
         return (data_term + entropy)
-
 def print_memory():
     print("memory usage: ", (process.memory_info().rss)/(1e9))
 
