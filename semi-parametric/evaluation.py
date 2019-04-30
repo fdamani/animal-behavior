@@ -182,6 +182,44 @@ class Evaluate(object):
         return test_marginal_log_ll #, train_accuracy, test_accuracy
         #return avg_train_log_ll, avg_test_log_ll, train_accuracy, test_accuracy, train_probs, test_probs
 
+    def valid_loss_map(self, opt_params):
+        '''
+            TODO:
+            1. monte carlo approx by averaging over multiple trajectories
+            sampled from q(z) (e.g. the posterior predictive)
+            2. ROC/AUC as well as accuracy.
+        need to use log sum exp trick
+
+        log sum_{mc samples} prod p(y|x,z)
+
+        - test marginal likelihood
+        - evaluate p(y_test|x_test, z_test) under many samples from q(z_test)
+        - average probabilities
+        - take log.
+
+
+        get S monte carlo samples from posterior
+        for each sample
+            compute the log likelihood of the test data under the sample
+        use the log sum exp trick to get the average probability (e.g. the posterior predictive)
+            - log(1/N) + log sum exp (log p(y_test | x, z'))
+        average the log marginal by number of observations to get the average lh.
+
+        '''
+        y_train, x, y_test, test_inds, y_future, x_future = self.unpack_data(self.data)
+        num_test = y_test.shape[0]
+        num_train = y_train.shape[0] - num_test
+        num_obs = y_test.shape[1]
+        map_est = opt_params
+
+        z = map_est
+        test_log_lh = self.model.log_likelihood_test(y_train, y_test, test_inds, x, z)
+
+        test_marginal_log_ll = test_log_lh / float(num_test)
+        test_marginal_log_ll = test_marginal_log_ll / float(num_obs)
+
+        return test_marginal_log_ll 
+
 
     def accuracy(self, opt_params):
         y_train, x, y_test, test_inds, y_future, x_future = self.unpack_data(self.data)

@@ -25,8 +25,8 @@ process = psutil.Process(os.getpid())
 torch.manual_seed(10)
 np.random.seed(7)
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-if torch.cuda.is_available():
-    matplotlib.use('Agg')
+#if torch.cuda.is_available():
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 # dtype = torch.cuda.FloatTensor if torch.cuda.is_available() else torch.float
 dtype = torch.float32
@@ -167,7 +167,7 @@ def train_test_split(y, x, cat, percent_test=.2):
 	return y_test which is real values for -1s..
 
 
-	cat: 'single' or 'band'
+	cat: 'single' or 'band', 'session'
 	for band:
 		- uniform indices across time-series then take +/- window
 		- random indices then take +/- window
@@ -195,6 +195,22 @@ def train_test_split(y, x, cat, percent_test=.2):
 		test_inds = np.random.choice(a=inds, size=int(percent_random_inds*T), replace=False)
 		test_inds = enumerate_neighbor_inds(test_inds, window_size)
 		test_inds = test_inds[test_inds < T]
+		mask = np.ones_like(inds, bool)
+		y_test = np.copy(y)[test_inds]
+		#x_test = np.copy(x)[test_inds]
+		y_train = y
+		y_train[test_inds] = -1
+	elif cat == 'session':
+		window_size = 1000
+		T = y.shape[0]
+		num_obs = y.shape[1]
+		dim = x.shape[2]
+		start_ind = int(.2* T)
+		test_inds = np.arange(start_ind, start_ind+window_size)
+		inds = np.arange(T)
+		#test_inds = np.random.choice(a=inds, size=int(percent_random_inds*T), replace=False)
+		#test_inds = enumerate_neighbor_inds(test_inds, window_size)
+		#test_inds = test_inds[test_inds < T]
 		mask = np.ones_like(inds, bool)
 		y_test = np.copy(y)[test_inds]
 		#x_test = np.copy(x)[test_inds]

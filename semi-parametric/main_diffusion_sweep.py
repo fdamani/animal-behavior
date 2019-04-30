@@ -27,20 +27,23 @@ process = psutil.Process(os.getpid())
 # set random seed
 torch.manual_seed(10)
 np.random.seed(7)
+server = True
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-if torch.cuda.is_available():
+if server:
     matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import datetime
 import utils
 from utils import sigmoid
+import sim as sim_data
 #dtype = torch.cuda.float if torch.cuda.is_available() else torch.float
 dtype = torch.float32
 
 #output_file = sys.argv[1]
 first_half = True
-if torch.cuda.is_available():
-    output_file = '/tigress/fdamani/neuro_output/vi_diagnostic_large_scale_data'
+server = True
+if server:
+    output_file = '/tigress/fdamani/neuro_output/vi_diagnostic_large_scale_data_optscale_1k_obs'
 else:
     output_file = ''
     if first_half:
@@ -158,7 +161,7 @@ if __name__ == '__main__':
         # sim model parameters
         dim = 3
         init_prior = ([0.0]*dim, [math.log(1.0)]*dim)
-        transition_log_scale = [math.log(5e-2)]# * dim 2e-1
+        transition_log_scale = [math.log(.2)]# * dim 2e-1
         #log_gamma = math.log(0.08)
         log_gamma = math.log(1e-10)
         #log_gamma = math.log(0.00000004)
@@ -179,10 +182,18 @@ if __name__ == '__main__':
                 'beta': False,
                 'log_alpha': False}
         model = LearningDynamicsModel(true_model_params, model_params_grad, dim=3)
-        num_obs_samples = 70
+        num_obs_samples = 1
         y, x, z_true = model.sample(T=T, num_obs_samples=num_obs_samples)
+        # sim_results = sim_data.generateSim()
+
+        # x = sim_results['X'][:, None, :]
+        # y = sim_results['all_Y'][0][:, None]
+        # z_true = sim_results['W']
+        # T = 10000
+        # dim = 4
+        # num_obs_samples = 1
         
-        rw = torch.mean(model.rat_reward_vec(y, x), dim=1)
+        #rw = torch.mean(model.rat_reward_vec(y, x), dim=1)
         # window=100
         # rw_avg = np.convolve(rw, np.ones(window))/ float(window)
         # rw_avg = rw_avg[window:-window]
@@ -194,8 +205,8 @@ if __name__ == '__main__':
         z_true = z_true.detach().cpu().numpy()
         plt.cla()
         plt.plot(z_true)
-        plt.show()
-        #plt.savefig(output_file+'/plots/sim_z.png')
+        #plt.show()
+        plt.savefig(output_file+'/plots/sim_z.png')
 
         # rw = torch.mean(model.rat_reward_vec(torch.tensor(y, device=device), torch.tensor(x,device=device)), dim=1)
         # ppc_window=100
@@ -213,7 +224,7 @@ if __name__ == '__main__':
         index = int(sys.argv[1])
         rat = datafiles[int(index)]
         print rat
-        if torch.cuda.is_available():
+        if server:
             f = '/tigress/fdamani/neuro_data/data/raw/allrats_withmissing_limitedtrials/csv/'
         else:
             f = '../data/'
@@ -285,12 +296,11 @@ if __name__ == '__main__':
     data = [y_train, x, y_test, test_inds, y_future, x_future, y_complete]
     # declare model here
 
-
     #scales = [math.log(1e-3), math.log(1e-2), math.log(1e-1), math.log(1e0), math.log(1e1)]
-    #scales = [1e-2, 1e-1]
+    scales = [.1, .2, .25, .3, .4, .5, .6]#, .7, .8, .9, 1.]# .0051e-1, 2e-1, 4e-1, 6e-1, 8e-1, 1.0 ]
     #scales = np.arange(start=5e-3, stop=1e-1, step=.05)
     # scales = [1e-2, 5e-2, 1e-1, 1e0]
-    scales = [1e-1]
+    #scales = [5e-3]
     #scales = [2e-1]
     # scales = [0.4]
     elbo = []
@@ -299,7 +309,7 @@ if __name__ == '__main__':
         print scale
         # model params
         init_transition_log_scale = [math.log(scale)]
-        init_prior = ([0.0]*dim, [math.log(10.0)]*dim)
+        init_prior = ([0.0]*dim, [math.log(100.0)]*dim)
         #log_gamma = [math.log(.08)] #*dim# .08 1e-10
         log_gamma = [math.log(1e-10)]
         beta = 100. # sigmoid(4.) = .9820
@@ -332,7 +342,7 @@ if __name__ == '__main__':
                               ppc_window=ppc_window, 
                               z_true=z_true,
                               true_model_params=true_model_params,
-                              iters=70000) # pass in just for figures
+                              iters=30000) # pass in just for figures
         opt_params = inference.optimize()
         loss = -inference.vi.forward_multiple_mcs(inference.train_data, inference.var_params, 10, num_samples=100) / float(inference.num_train)
         test_post_predictive = inference.ev.valid_loss(opt_params, num_mc_samples=100)
@@ -353,7 +363,7 @@ if __name__ == '__main__':
         del loss
         if torch.cuda.is_available():
             print 'gpu usage: ', torch.cuda.memory_allocated(device) /1e9
-
+        sys.exit(0)
     plt.cla()
     plt.plot(scales, elbo)
     plt.savefig(output_file+'/plots/diffusion_sweep_training_elbo.png')

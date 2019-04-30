@@ -39,8 +39,9 @@ dtype = torch.float32
 
 #output_file = sys.argv[1]
 first_half = True
-if torch.cuda.is_available():
-    output_file = '/tigress/fdamani/neuro_output/vi_diagnostic'
+server = True
+if server:
+    output_file = '/tigress/fdamani/neuro_output/4.29/multiple_gamma_single_alpha_old_parameterization'
 else:
     output_file = ''
     if first_half:
@@ -84,7 +85,7 @@ def estimation(dataset,
     y, x, z_true = dataset
     y_complete = y.clone().detach()
     y_complete = y_complete[0:-num_future_steps]
-    category_tt_split = 'single'
+    category_tt_split = 'session'
     y, x, y_future, x_future = train_future_split(y, x, num_future_steps)
     y_train, y_test, test_inds = train_test_split(y.cpu(), x.cpu(), cat=category_tt_split)
     x = x.clone().detach() #torch.tensor(x, dtype=dtype, device=device)
@@ -117,7 +118,7 @@ def estimation(dataset,
                           z_true=z_true,
                           true_model_params=true_model_params) # pass in just for figures
 
-    opt_params = inference.optimize()
+    opt_params = inference.em()
     torch.save(opt_params, boot_output_file+'/model_structs/opt_params.npy')
     torch.save(dataset, boot_output_file+'/data/dataset.npy')
     torch.save(model_params, boot_output_file+'/model_structs/model_params.npy')
@@ -136,11 +137,11 @@ if __name__ == '__main__':
     import datetime
     savedir += str(datetime.datetime.now())
 
-    # datafiles = ['W065.csv', 'W066.csv', 'W068.csv', 'W072.csv', 'W073.csv', 'W074.csv', 'W075.csv', 'W078.csv',
-    #              'W080.csv', 'W081.csv', 'W082.csv', 'W083.csv', 'W088.csv', 'W089.csv', 'W094.csv']
+    datafiles = ['W065.csv', 'W066.csv', 'W068.csv', 'W072.csv', 'W073.csv', 'W074.csv', 'W075.csv', 'W078.csv',
+                  'W080.csv', 'W081.csv', 'W082.csv', 'W083.csv', 'W088.csv', 'W089.csv', 'W094.csv']
 
-    datafiles = ['W074.csv', 'W075.csv', 'W078.csv', 'W080.csv', 'W081.csv', 'W082.csv', 
-                    'W083.csv', 'W088.csv', 'W089.csv', 'W094.csv']
+    # datafiles = ['W074.csv', 'W075.csv', 'W078.csv', 'W080.csv', 'W081.csv', 'W082.csv', 
+    #                 'W083.csv', 'W088.csv', 'W089.csv', 'W094.csv']
 
     # datafiles = ['W065.csv', 'W066.csv', 'W072.csv', 'W073.csv', 'W074.csv', 'W075.csv', 'W078.csv',
     #              'W080.csv', 'W082.csv', 'W083.csv', 'W088.csv', 'W089.csv']
@@ -152,17 +153,17 @@ if __name__ == '__main__':
         os.makedirs(output_file+'/data')
         os.makedirs(output_file+'/plots')
         # T = 200 # 100
-        T = 200
+        T = 1000
         # time-series model
         # sim model parameters
         dim = 3
         init_prior = ([0.0]*dim, [math.log(1.0)]*dim)
-        transition_log_scale = [math.log(1e-2)]# * dim
-        log_gamma = math.log(0.08)
+        transition_log_scale = [math.log(5e-2)]# * dim
+        log_gamma = math.log(1e-10) # 0.08
         #log_gamma = math.log(0.00000004)
         
         beta = 100. # try -3, 0.
-        log_alpha = math.log(.1)
+        log_alpha = math.log(.1) # .1
         
         true_model_params = {'init_prior': init_prior,
                         'transition_log_scale': transition_log_scale,
@@ -176,7 +177,7 @@ if __name__ == '__main__':
                 'beta': False,
                 'log_alpha': False}
         model = LearningDynamicsModel(true_model_params, model_params_grad, dim=3)
-        num_obs_samples = 50
+        num_obs_samples = 500
         y, x, z_true = model.sample(T=T, num_obs_samples=num_obs_samples)
         
         rw = torch.mean(model.rat_reward_vec(y, x), dim=1)
@@ -217,10 +218,10 @@ if __name__ == '__main__':
         rat = f.split('/')[-1].split('.csv')[0]
         
         # add to dir name
-        output_file += rat
+        output_file += '/'+rat
         # output_file += '__obs'+str(num_obs_samples)
 
-        output_file += '_'+str(datetime.datetime.now())
+        #output_file += '_'+str(datetime.datetime.now())
         os.makedirs(output_file)
         os.makedirs(output_file+'/model_structs')
         os.makedirs(output_file+'/data')
@@ -259,8 +260,8 @@ if __name__ == '__main__':
         T = x.shape[0]
     # split data into train/test
     ############ initial estimation 
-    num_future_steps = 10
-    category_tt_split = 'band'
+    num_future_steps = 1
+    category_tt_split = 'single'
     num_mc_samples = 10
     ppc_window = 50
     percent_test = .2
@@ -279,14 +280,65 @@ if __name__ == '__main__':
     x_future = torch.tensor(x_future, dtype=dtype, device=device)
     #data = [y_train, x]
     data = [y_train, x, y_test, test_inds, y_future, x_future, y_complete]
-    # declare model here
 
-    # model params
-    init_transition_log_scale = [math.log(1e-2)]# * dim
+    cv_bool = True
+    if cv_bool:
+        # parameter sweep over scale
+        transition_log_scales = [1e-3, 5e-3, 1e-2, 3e-2, 5e-2, 7e-2, 1e-1]
+        #transition_log_scales = [3e-2, 5e-2, 7e-2]
+
+        test_marginals = []
+        for tls in transition_log_scales:
+            print tls
+            # model params
+            init_transition_log_scale = [math.log(tls)]# * dim
+            #init_transition_log_scale = []
+            init_prior = ([0.0]*dim, [math.log(1.0)]*dim)
+            log_gamma = [math.log(1e-20)]#*dim# .08 1e-10
+            beta = 100. # sigmoid(4.) = .9820
+            log_alpha = [math.log(1e-20)]#*dim # .1
+
+            model_params = {'init_prior': init_prior,
+                            'transition_log_scale': init_transition_log_scale,
+                            'log_gamma': log_gamma,
+                            'beta': beta,
+                            'log_alpha': log_alpha}
+            
+            model_params_grad = {'init_prior': False,
+                            'transition_log_scale': False,
+                            'log_gamma': False,
+                            'beta': False,
+                            'log_alpha': False}
+
+            torch.save(model_params_grad, output_file+'/model_structs/model_params_grad.pth')
+            torch.save(model_params, output_file+'/model_structs/init_model_params.pth')
+
+            model = LearningDynamicsModel(model_params, model_params_grad, dim)
+            inference = Inference(data, 
+                                  model, 
+                                  model_params_grad, 
+                                  savedir=output_file, 
+                                  num_obs_samples=num_obs_samples, 
+                                  num_future_steps=num_future_steps, 
+                                  num_mc_samples=num_mc_samples,
+                                  ppc_window=ppc_window, 
+                                  z_true=z_true,
+                                  true_model_params=true_model_params) # pass in just for figures
+            
+            map_params = inference.init_z
+            ev = Evaluate(data, model, savedir='', num_obs_samples=num_obs_samples)
+            test_marginal = ev.valid_loss_map(map_params)
+            print test_marginal
+            test_marginals.append(test_marginal)
+        init_transition_log_scale = [math.log(transition_log_scales[np.argmax(test_marginals)])]
+    else:
+        init_transition_log_scale = [math.log(.05)]# * dim
+
+    #init_transition_log_scale = []
     init_prior = ([0.0]*dim, [math.log(1.0)]*dim)
-    log_gamma = [math.log(.08)] #*dim# .08 1e-10
+    log_gamma = [math.log(.01)]*dim# .08 1e-10
     beta = 100. # sigmoid(4.) = .9820
-    log_alpha = math.log(.1)
+    log_alpha = [math.log(.01)]#*dim # .1
 
     model_params = {'init_prior': init_prior,
                     'transition_log_scale': init_transition_log_scale,
@@ -296,9 +348,9 @@ if __name__ == '__main__':
     
     model_params_grad = {'init_prior': False,
                     'transition_log_scale': False,
-                    'log_gamma': False,
+                    'log_gamma': True,
                     'beta': False,
-                    'log_alpha': False}
+                    'log_alpha': True}
 
     torch.save(model_params_grad, output_file+'/model_structs/model_params_grad.pth')
     torch.save(model_params, output_file+'/model_structs/init_model_params.pth')
@@ -314,7 +366,17 @@ if __name__ == '__main__':
                           ppc_window=ppc_window, 
                           z_true=z_true,
                           true_model_params=true_model_params) # pass in just for figures
-    opt_params = inference.optimize()
+    
+    opt_params = inference.em()
+
+    final_loss = -inference.vi.forward_multiple_mcs(inference.train_data, inference.var_params, 50, num_samples=100) #/ float(inference.num_train)
+    
+    k = float(2*dim)
+    bic = (2 * final_loss.item() + k * np.log(T * num_obs_samples)) / float(T * num_obs_samples)
+
+    np.savetxt(output_file+'/training_bic.txt', np.array([bic]))
+    np.savetxt(output_file+'/training_elbo.txt', np.array([final_loss.item()]))
+    print final_loss.item(), bic
 
     for k,v in model_params_grad.items():
         if v == False:
@@ -322,8 +384,6 @@ if __name__ == '__main__':
 
     torch.save(opt_params, output_file+'/model_structs/opt_params.pth')
     torch.save(data, output_file+'/data/data.pth')
-
-    sys.exit(0)
 
     ################### bootstrap ################################################
     num_datasets = 25
@@ -334,8 +394,6 @@ if __name__ == '__main__':
                            'beta': [],
                            'log_alpha': []}
     for ind in range(num_datasets):
-        if ind == 0: 
-            continue
         print 'bootstrap: ', ind
         estimated_params = estimation(dataset=sim_datasets[ind], 
                                       boot_index=ind, 
@@ -355,9 +413,10 @@ if __name__ == '__main__':
         # if param was estimated in model
         if model_params_grad[k]:
             plt.cla()
-            vx = torch.stack(v)
+            vx = torch.stack(v).squeeze(dim=-1)
             #vx = [to_numpy(el) for el in v]
             fix, ax = plt.subplots()
+            embed()
             ax.boxplot(to_numpy(vx))
             ax.set_axisbelow(True)
             ax.set_xlabel('Feature')

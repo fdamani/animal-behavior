@@ -26,8 +26,8 @@ np.random.seed(7)
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 dtype = torch.float32
-if torch.cuda.is_available():
-    matplotlib.use('Agg')
+#if torch.cuda.is_available():
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 
 import torch.nn as nn
@@ -56,7 +56,7 @@ class LearningDynamicsModel(object):
             requires_grad = self.model_params_grad['init_prior'], device=device)
         self.transition_log_scale = torch.tensor([transition_log_scale], 
             requires_grad=self.model_params_grad['transition_log_scale'], device=device)
-        self.log_alpha = torch.tensor([log_alpha],
+        self.log_alpha = torch.tensor(log_alpha,
             requires_grad=self.model_params_grad['log_alpha'], device=device)
         self.beta = torch.tensor([beta],
             requires_grad=self.model_params_grad['beta'], device=device)
@@ -206,7 +206,16 @@ class LearningDynamicsModel(object):
         obs = Bernoulli(logits=logits_train)
         return torch.sum(obs.log_prob(y[train_inds]))
 
-    def log_prior_vec(self, z, y, x):
+    def compute_momentum_vector(self, grad):
+        mtm = [] #torch.zeros_like(grad, device=device)
+        mtm.append(torch.zeros(grad.shape[1], device=device))
+        for i in range(1, grad.shape[0]):
+            mtm.append(grad[i-1] + mtm[i-1] * .6)
+     
+        return torch.stack(mtm)
+
+
+    def log_prior_vec(self, z, y, x, momentum=False):
         '''
             input: z_1:t
             parameterize p(z_t | z_t-1, theta)
@@ -226,9 +235,15 @@ class LearningDynamicsModel(object):
             (1.0 - self.sigmoid(self.beta))* torch.sign(z_prev))
 
         grad_loss = -grad_rat_obj + self.sparsity_dims * regularization_comp
+        #grad_loss = -torch.exp(self.log_alpha) * grad_rat_obj + self.sparsity_dims * regularization_comp
 
-        # properly vectorized
-        mean = z_prev - torch.exp(self.log_alpha) * grad_loss
+        if momentum:
+            mtm = self.compute_momentum_vector(grad_loss)
+            mean = z_prev - torch.exp(self.log_alpha) * mtm
+        else:
+            # gradient descent
+            mean = z_prev - torch.exp(self.log_alpha) * grad_loss
+            #mean = z_prev - grad_loss
 
         scale = torch.exp(self.transition_log_scale)
         prior = Normal(mean, scale)
@@ -345,7 +360,7 @@ class LearningDynamicsModel(object):
 
         return avg_gradient
 
-    def grad_rat_obj_score_vec(self, y, x, z):
+    def grad_rat_obj_score_vec(self, y, x, z, smoothed_reward=False):
         '''
             many time points with one particle
             grad log p(y|x, z)
@@ -362,7 +377,18 @@ class LearningDynamicsModel(object):
         r_y_1_x = self.rat_reward_vec(torch.tensor([1.], device=device), x)
         r_y_0_x = 1.0 - r_y_1_x
 
-        # embed()
+        if smoothed_reward:
+            rw = self.rat_reward_vec(y, x)
+            k = 6
+            weights = np.array([.1, .5, 1., 2., 4., 6])
+            convolved_rw = (np.convolve(rw.detach().cpu().numpy().flatten(), weights)[:-k+1]) / float(np.sum(weights))
+
+            #convolved_rw = (np.convolve(rw.detach().cpu().numpy().flatten(), np.ones(k))[:-k+1]) / float(k)
+            prev_conv_rw = torch.ones(rw.shape[0], device=device)
+            prev_conv_rw[1:] = torch.tensor(convolved_rw[:-1], device=device)
+            r_y_1_x = r_y_1_x * prev_conv_rw[:, None]
+            r_y_0_x = r_y_0_x * prev_conv_rw[:, None]
+
         # actual_rewards = self.rat_reward_vec(y, x)
         # rw_avg = np.convolve(actual_rewards, np.ones(10))/ 10.0
 

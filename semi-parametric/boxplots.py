@@ -36,7 +36,7 @@ import utils
 from utils import sigmoid
 #dtype = torch.cuda.float if torch.cuda.is_available() else torch.float
 dtype = torch.float32
-input_file = '/tigress/fdamani/neuro_output/exp8_l2_per_feature_first_half/'
+input_file = '/tigress/fdamani/neuro_output/4.27/10obs_gammadim_alphadim/'
 
 import os
 boots = []
@@ -53,10 +53,10 @@ for file in os.listdir(input_file):
 	boots.append(x)
 plt.cla()
 boots = np.array(boots)
+embed()
 if len(boots.shape) == 3:
 	boots = boots.T
 	for i in range(boots.shape[0]):
-		embed()
 		fix, ax = plt.subplots()
 		ax.boxplot(np.exp(boots[i]))
 		ax.set_axisbelow(True)
@@ -71,7 +71,7 @@ if len(boots.shape) == 3:
 
 else:
 	fix, ax = plt.subplots()
-	ax.boxplot(np.exp(np.transpose(boots)))
+	ax.boxplot(np.exp(np.transpose(boots.squeeze())))
 	ax.set_axisbelow(True)
 	ax.set_xlabel('Rats')
 	if vble == 'log_gamma':

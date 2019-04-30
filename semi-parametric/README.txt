@@ -1,3 +1,63 @@
+4/29
+jobs running tonight:
+- multiple alpha.
+- multiple gamma and single alpha (with new parameterization)
+
+
+
+we want to run:
+- multiple gamma, single alpha old parameterization.
+	- we have these results for a diff # of obs/time point.
+- multiple gamma, multiple alpha old and new paramterization. 
+
+
+
+
+
+
+
+- single alpha
+- multiple alpha
+- multiple gamma single alpha
+- multiple gamma multiple alpha
+- multiple gamma multiple alpha with separate params for each term
+
+
+
+in order:
+1. implement cross-validation using 2nd order method X
+2. print additional plot for held out session latent trajectory X
+	- not obvious how to do held out session considering prior is recurrent.
+		- simulate data and compute prior under it.
+	- for diffusion prior it learns a horizontal line this makes sense because that
+		is most likely under just the prior?
+3. change alpha to just be alpha * learning 
+4. compare single alpha model to vector of alphas across rats.
+5. add feature-specific regularization. how does it do?
+6. ideally this is under many different held out sessions. (beginning, middle, end)
+
+- implement quick cross-validation using 2nd order method and test marginal likelihood using mean
+- need some plots to illustrate why its best to fit scale with cross-validation
+	- optimizing scale results in high-variance low bias fit
+		- plot of train vs test accuracy across rats under this scale param.
+		- marginal likelihood under the two models. 
+
+
+
+
+- implement leave a session out (300 trials). (for now leave out one of the middle sessions)
+	- two plots. latent trajectories with vertical lines around test sesssion
+	- separate plot of test session
+- have a plot comparing scale performance via c.v. and via elbo optimization
+	- for c.v. 
+		- fine to use map estimate from 2nd order method and evaluate posterior predictive
+		under this quantity
+	- compare this to elbo optimization.
+- implement feature-specific learning rates with no regularization
+- implement held out rat
+	- product over rats
+	- sample from prior and evaluate likelihood under prior samples
+
 4/14
 - train on last 5k trials and first 5k trials
 	- bootstrap estimate for 6 params
