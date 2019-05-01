@@ -221,7 +221,7 @@ if __name__ == '__main__':
 
         # model params
     else:
-        num_obs_samples = 1
+        num_obs_samples = 100
         #f = '/tigress/fdamani/neuro_data/data/clean/LearningData_W066_minmaxnorm.txt'
         # data file
         inds = [1, 2, 3, 4, 5]
@@ -262,7 +262,6 @@ if __name__ == '__main__':
             #     x = x[half:]
             #     y = y[half:]
             #     rw = y[half:]
-
             rw = torch.tensor(rw, dtype=dtype, device=device)
             z_true = None
             true_model_params=None
@@ -311,7 +310,6 @@ if __name__ == '__main__':
         data = [y_train, x, y_test, test_inds, y_future, x_future, y_complete]
 
         datasets.append(data)
-    embed()
     cv_bool = False
     if cv_bool:
         # parameter sweep over scale
@@ -367,7 +365,7 @@ if __name__ == '__main__':
 
     #init_transition_log_scale = []
     init_prior = ([0.0]*dim, [math.log(1.0)]*dim)
-    log_gamma = [math.log(1e-10)]#*dim# .08 1e-10
+    log_gamma = [math.log(.01)]*dim# .08 1e-10
     beta = 100. # sigmoid(4.) = .9820
     log_alpha = [math.log(.01)]#*dim # .1
 

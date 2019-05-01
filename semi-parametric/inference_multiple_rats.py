@@ -115,6 +115,7 @@ class Inference(object):
                  true_model_params=None,
                  iters=1000):
         self.datasets = datasets
+        self.num_datasets = len(self.datasets)
         self.dim = self.datasets[0][1].size(2)
         #self.T = self.data[1].size(0)
 
@@ -138,9 +139,13 @@ class Inference(object):
 
 
         init = 'map' # 'true'
+        # list of map estimates
         self.init_z = self.map_estimate()
         if init == 'map':
-            self.var_params = self.vi.init_var_params(self.T, self.dim, self.init_z, grad=True)
+            self.var_params = []
+            for i in range(self.num_datasets):
+                T = self.datasets[i][0].shape[0]
+                self.var_params.append(self.vi.init_var_params(T, self.dim, self.init_z[i], grad=True))
         elif init == 'true':
             self.var_params = self.vi.init_var_params(self.T, self.dim, z_true[0:-1], grad=True)
         else:
@@ -148,8 +153,8 @@ class Inference(object):
         self.iters = iters
         #lr = 1e-4
 
-        self.opt_params = {'var_mu': self.var_params[0], 
-                   'var_log_scale': self.var_params[1]}
+        self.opt_params = {'var_mu': [self.var_params[i][0] for i in range(self.num_datasets)], 
+                   'var_log_scale': [self.var_params[i][1] for i in range(self.num_datasets)]}
 
         # find model params with grad signal=True
         for k,v in self.model_params_grad.items():
@@ -158,12 +163,12 @@ class Inference(object):
         #self.opt_params = [self.var_params[0], self.var_params[1], self.model.transition_log_scale]
         #self.optimizer =  torch.optim.SGD(self.opt_params.values(), lr=1e-2, momentum=.9)
         #self.optimizer =  torch.optim.Adam(self.opt_params.values(), lr=1e-2)
-        self.optimizer =  torch.optim.LBFGS(self.opt_params.values())
-        lbfgs = True
+        #self.optimizer =  torch.optim.LBFGS(self.opt_params.values())
+        #lbfgs = True
 
-        self.ev = Evaluate(self.data, self.model, savedir='', num_obs_samples=self.num_obs_samples)
-        self.num_test = self.data[2].shape[0]
-        self.num_train = self.data[0].shape[0] - self.num_test
+        #self.ev = Evaluate(self.data, self.model, savedir='', num_obs_samples=self.num_obs_samples)
+        #self.num_test = self.data[2].shape[0]
+        #self.num_train = self.data[0].shape[0] - self.num_test
     def unpack_data(self, data):
         y = data[0]
         x = data[1]
@@ -176,7 +181,7 @@ class Inference(object):
             T = self.datasets[i][0].shape[0]
             z_list.append(torch.tensor(torch.rand(T, self.dim, device=device), requires_grad=True, device=device))
         #y, x = self.unpack_data(self.data)
-        self.map_iters = 25
+        self.map_iters = 50
         self.opt_params = z_list
         #self.map_optimizer =  torch.optim.Adam(self.opt_params, lr=1e-3)
         self.map_optimizer = torch.optim.LBFGS(self.opt_params)
@@ -205,14 +210,21 @@ class Inference(object):
             if t % 5 == 0:
                 print t, output.item()
             if t % 5 == 0:
-                plt.cla()
-                for z in z_list:
+                for ind,z in enumerate(z_list):
+                    plt.cla()
                     plt.plot(to_numpy(z))
-                figure = plt.gcf() # get current figure
-                figure.set_size_inches(8, 6)
-                plt.savefig(self.savedir+'/plots/curr_map_z.png')
-        embed()
-        return self.opt_params[0].clone().detach()
+                    figure = plt.gcf() # get current figure
+                    figure.set_size_inches(8, 6)
+                    plt.savefig(self.savedir+'/plots/single_rat_map_z_'+str(ind)+'png')
+                for dm in range(self.dim):
+                    plt.cla()
+                    for z in z_list:
+                        plt.plot(to_numpy(z[:,dm]))
+                    figure = plt.gcf() # get current figure
+                    figure.set_size_inches(8, 6) 
+                    plt.savefig(self.savedir+'/plots/single_feature_map_z_'+str(dm)+'.png')
+
+        return [self.opt_params[i].clone().detach() for i in range(len(self.opt_params))]
 
     def em(self):
         # optimize model parameters conditioned on vi
@@ -226,23 +238,25 @@ class Inference(object):
         # #self.optimizer = torch.optim.Adam(self.opt_params.values(), lr=1e-2)
         # self.optimize(15, True, 1)
         # joint optimization of vi and model params
-        self.var_params[0].requires_grad = True
-        self.var_params[1].requires_grad = True
+        # self.var_params[0].requires_grad = True
+        # self.var_params[1].requires_grad = True
         #self.var_params = self.vi.init_var_params(self.T, self.dim, self.init_z, grad=True)
         #self.model.transition_log_scale.requires_grad = True
-        self.opt_params = {'var_mu': self.var_params[0], 
-                   'var_log_scale': self.var_params[1]}
-        for k,v in self.model_params_grad.items():
-            if v == True:
-                self.opt_params[k] = self.model.params[k]
-        self.optimizer = torch.optim.Adam(self.opt_params.values(), 1e-3)
+        # self.opt_params = {'var_mu': self.var_params[0], 
+        #            'var_log_scale': self.var_params[1]}
+        # for k,v in self.model_params_grad.items():
+        #     if v == True:
+        #         self.opt_params[k] = self.model.params[k]
+        self.optimizer = torch.optim.Adam([self.opt_params['log_alpha']] + \
+                                           self.opt_params['var_mu'] + \
+                                           self.opt_params['var_log_scale'], lr=1e-2)
         #self.optimizer = torch.optim.Adam(self.opt_params.values(), lr=1e-2)
         #return self.optimize(5000, True, 1000)
-        return self.optimize(80000, False, 1000)
+        return self.optimize(80000, False, 10)
         #return self.optimize(100000, False, 10000)
 
     def optimize(self, iters, lbfgs, print_every):
-        y, x = self.train_data[0], self.train_data[1]
+        #y, x = self.train_data[0], self.train_data[1]
 
         print 'optimizing...'
         outputs = []
@@ -259,23 +273,15 @@ class Inference(object):
             # if t == 10000:
             #     self.optimizer =  torch.optim.SGD(self.opt_params.values(), lr=1e-2, momentum=.9)
             # e-step
-            def closure():
-                self.optimizer.zero_grad()
-                t=1
-                output = -self.vi.forward(self.train_data, self.var_params, t) / float(self.num_train)
-                outputs.append(output.item())
-                output.backward()
-                return output
-            if lbfgs:
-                self.optimizer.step(closure)
-                with torch.no_grad():
-                    output = -self.vi.forward(self.train_data, self.var_params, t) / float(self.num_train)
-            else:
-                self.optimizer.zero_grad()
-                output = -self.vi.forward(self.train_data, self.var_params, t) / float(self.num_train)
-                outputs.append(output.item())
-                output.backward()
-                self.optimizer.step()
+            self.optimizer.zero_grad()
+            output = 0
+            for d in range(len(self.datasets)):
+                y, x = self.datasets[d][0], self.datasets[d][1]
+                num_train = self.datasets[d][0].shape[0] - self.datasets[d][2].shape[0]
+                output += -self.vi.forward((y,x), self.var_params[d], t) / float(num_train)
+            outputs.append(output.item())
+            output.backward()
+            self.optimizer.step()
 
             for k, v in curr_model_params.items():
                 if k in self.opt_params:
@@ -284,19 +290,19 @@ class Inference(object):
             if t % print_every == 0:
                 # printing
                 print 'iter: ', t, 'loss: %.2f ' % output.item(), 'scale: ',
-                if 'var_log_scale' in self.opt_params:
-                    print torch.mean(self.opt_params['var_log_scale'].clone().detach()).item(),
+                #if 'var_log_scale' in self.opt_params:
+                    #print torch.mean(self.opt_params['var_log_scale'].clone().detach()).item(),
                 for k,v in self.model_params_grad.items():
                     if v == True:
                         if k in self.opt_params:
                             for el in self.opt_params[k].flatten():
                                 print k, '%.3f ' % el.item(),
                 print '\n'
-                test_marginal = self.ev.valid_loss(self.opt_params)
+                #test_marginal = self.ev.valid_loss(self.opt_params)
                 #y_future, future_trajectories, avg_future_marginal_lh = self.ev.sample_future_trajectory(self.opt_params, self.num_future_steps)
-                train_acc, test_acc = self.ev.accuracy(self.opt_params)
-                print 'train acc: %.3f ' % train_acc.item(), 'test acc: %.3f ' % test_acc.item(), \
-                     'test marginal likelihood: %.3f ' % test_marginal#, 'future marginal lh: %.3f' % avg_future_marginal_lh.item()
+                #train_acc, test_acc = self.ev.accuracy(self.opt_params)
+                # print 'train acc: %.3f ' % train_acc.item(), 'test acc: %.3f ' % test_acc.item(), \
+                #      'test marginal likelihood: %.3f ' % test_marginal#, 'future marginal lh: %.3f' % avg_future_marginal_lh.item()
 
                 # plotting
                 plt.cla()
@@ -321,25 +327,38 @@ class Inference(object):
                     figure.set_size_inches(8, 6)
                     plt.savefig(self.savedir+'/plots/'+k+'.png')
 
-                zx = self.var_params[0]
-                zx = to_numpy(zx)
-                zx_scale = np.exp(to_numpy(self.var_params[1]))
-                plt.cla()
-                labels = ['Bias', 'X1', 'X2', 'Choice t-1', 'RW Side t-1', 'X1 t-1', 'X2 t-1']
-                for j in range(zx_scale.shape[1]):
-                    plt.plot(zx[:,j], label=labels[j], linewidth=.5)
-                    # plt.fill_between(np.arange(zx.shape[0]), zx[:,j] - zx_scale[:,j],  zx[:,j] + zx_scale[:,j])
-                figure = plt.gcf() # get current figure
-                figure.set_size_inches(12, 8)
-                # plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
-                plt.savefig(self.savedir+'/plots/curr_est_z.png')
-                test_inds = self.data[-4].cpu().numpy()
-                zx_test = zx[test_inds]
-                plt.cla()
-                for j in range(zx_scale.shape[1]):
-                    plt.plot(zx_test[:,j], label=labels[j], linewidth=.5)
-                plt.savefig(self.savedir+'/plots/curr_est_test_z.png')
 
+                for d in range(len(self.datasets)):
+                    zx = self.var_params[d][0]
+                    #zx = self.var_params[0]
+                    zx = to_numpy(zx)
+                    zx_scale = np.exp(to_numpy(self.var_params[d][1]))
+                    plt.cla()
+                    labels = ['Bias', 'X1', 'X2', 'Choice t-1', 'RW Side t-1', 'X1 t-1', 'X2 t-1']
+                    for j in range(zx_scale.shape[1]):
+                        plt.plot(zx[:,j], label=labels[j], linewidth=.5)
+                        # plt.fill_between(np.arange(zx.shape[0]), zx[:,j] - zx_scale[:,j],  zx[:,j] + zx_scale[:,j])
+                    figure = plt.gcf() # get current figure
+                    figure.set_size_inches(12, 8)
+                    # plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+                    plt.savefig(self.savedir+'/plots/single_rat_vi_est_'+str(d)+'.png')
+                for dm in range(self.dim):
+                    plt.cla()
+                    for d in range(len(self.datasets)):
+                        zx = self.var_params[d][0]
+                        zx = to_numpy(zx)
+                        zx_scale = np.exp(to_numpy(self.var_params[d][1]))
+                        plt.plot(zx[:, dm])
+                    figure = plt.gcf() # get current figure
+                    figure.set_size_inches(8, 6) 
+                    plt.savefig(self.savedir+'/plots/single_feature_vi_z_'+str(dm)+'.png')
+
+                    # test_inds = self.data[-4].cpu().numpy()
+                    # zx_test = zx[test_inds]
+                    # plt.cla()
+                    # for j in range(zx_scale.shape[1]):
+                    #     plt.plot(zx_test[:,j], label=labels[j], linewidth=.5)
+                    # plt.savefig(self.savedir+'/plots/curr_est_test_z.png')
 
             # detach and clone all params
         for k in self.opt_params.keys():
