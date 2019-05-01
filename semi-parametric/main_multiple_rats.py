@@ -14,8 +14,8 @@ from torch.nn import Linear, Module, MSELoss
 from torch.optim import SGD, Adam
 from torch.distributions import Normal, Bernoulli, MultivariateNormal
 
-import inference
-from inference import Inference, MeanFieldVI
+import inference_multiple_rats
+from inference_multiple_rats import Inference, MeanFieldVI
 
 import psutil
 import learning_dynamics
@@ -41,7 +41,7 @@ dtype = torch.float32
 first_half = True
 server = True
 if server:
-    output_file = '/tigress/fdamani/neuro_output/block_residual_bootstrap/multiple_gamma_multiple_alpha'
+    output_file = '/tigress/fdamani/neuro_output/multiple_rats/test'
 else:
     output_file = ''
     if first_half:
@@ -224,82 +224,94 @@ if __name__ == '__main__':
         num_obs_samples = 1
         #f = '/tigress/fdamani/neuro_data/data/clean/LearningData_W066_minmaxnorm.txt'
         # data file
-        index = int(sys.argv[1])
-        rat = datafiles[int(index)]
-        print rat
-        if torch.cuda.is_available():
-            f = '/tigress/fdamani/neuro_data/data/raw/allrats_withmissing_limitedtrials/csv/'
-        else:
-            f = '../data/'
-        f += rat
-        rat = f.split('/')[-1].split('.csv')[0]
-        
-        # add to dir name
-        output_file += '/'+rat
-        # output_file += '__obs'+str(num_obs_samples)
-
-        #output_file += '_'+str(datetime.datetime.now())
+        inds = [1, 2, 3, 4, 5]
+        output_file += '_'+str(datetime.datetime.now())
         os.makedirs(output_file)
         os.makedirs(output_file+'/model_structs')
         os.makedirs(output_file+'/data')
         os.makedirs(output_file+'/plots')
         savedir = output_file
+        raw_datasets = []
+        for ind in inds:
+            index = ind
+            rat = datafiles[int(index)]
+            print rat
+            if torch.cuda.is_available():
+                f = '/tigress/fdamani/neuro_data/data/raw/allrats_withmissing_limitedtrials/csv/'
+            else:
+                f = '../data/'
+            f += rat
+            rat = f.split('/')[-1].split('.csv')[0]
+            
+            # add to dir name
+            #output_file += '/'+rat
+            # output_file += '__obs'+str(num_obs_samples)
 
-        # os.mkdir(savedir)
-        #f = '../data/W066_short.csv'
-        #savedir = output_file
-   
-        x, y, rw = read_and_process(num_obs_samples, f, savedir=savedir)
-        # half = int(x.shape[0]/2)
-        # if first_half:
-        #     x = x[:half]
-        #     y = y[:half]
-        #     rw = y[:half]
-        # else:
-        #     x = x[half:]
-        #     y = y[half:]
-        #     rw = y[half:]
+            #output_file += '_'+str(datetime.datetime.now())
+            # os.mkdir(savedir)
+            #f = '../data/W066_short.csv'
+            #savedir = output_file
+       
+            x, y, rw = read_and_process(num_obs_samples, f, savedir=savedir)
+            # half = int(x.shape[0]/2)
+            # if first_half:
+            #     x = x[:half]
+            #     y = y[:half]
+            #     rw = y[:half]
+            # else:
+            #     x = x[half:]
+            #     y = y[half:]
+            #     rw = y[half:]
 
-        rw = torch.tensor(rw, dtype=dtype, device=device)
-        z_true = None
-        true_model_params=None
+            rw = torch.tensor(rw, dtype=dtype, device=device)
+            z_true = None
+            true_model_params=None
 
-        #x = x[0:10000]
-        #y = y[0:10000]
+            #x = x[0:10000]
+            #y = y[0:10000]
 
-        # rnn_hiddens = torch.load('hiddens_rnn_7_features.pt')
-        # rnn_hiddens = rnn_hiddens.detach().to(device)
-        # x = rnn_hiddens[:, None, :]
-        # x = x[:, 0, :][:, None, :]
-        # y = y[:, 0][:, None]
+            # rnn_hiddens = torch.load('hiddens_rnn_7_features.pt')
+            # rnn_hiddens = rnn_hiddens.detach().to(device)
+            # x = rnn_hiddens[:, None, :]
+            # x = x[:, 0, :][:, None, :]
+            # y = y[:, 0][:, None]
 
-        dim = x.shape[2]
-        T = x.shape[0]
-    # split data into train/test
-    ############ initial estimation 
-    num_future_steps = 1
-    category_tt_split = 'single'
-    num_mc_samples = 10
-    ppc_window = 50
-    percent_test = .01
-    features = ['Bias', 'X1', 'X2', 'Choice t-1', 'RW Side t-1', 'X1 t-1', 'X2 t-1']
+            dim = x.shape[2]
+            T = x.shape[0]
 
-    y_complete = torch.tensor(y.copy(), device=device)
-    y_complete = y_complete[0:-num_future_steps]
+            raw_datasets.append((x, y, rw, z_true, true_model_params, dim, T, rat))
 
-    #y, x, y_future, x_future = train_future_split(y, x, num_future_steps)
-    y_future = y
-    x_future = x
-    y_train, y_test, test_inds = train_test_split(y, x, category_tt_split, percent_test)
-    x = torch.tensor(x, dtype=dtype, device=device)
-    y_train = torch.tensor(y_train, dtype=dtype, device=device)
-    y_test = torch.tensor(y_test, dtype=dtype, device=device)
-    test_inds = torch.tensor(test_inds, dtype=torch.long, device=device)
-    y_future = torch.tensor(y_future, dtype=dtype, device=device)
-    x_future = torch.tensor(x_future, dtype=dtype, device=device)
-    #data = [y_train, x]
-    data = [y_train, x, y_test, test_inds, y_future, x_future, y_complete]
+    datasets = []
+    for dataset in raw_datasets:
+        x, y, rw, z_true, true_model_params, dim, T, rat = dataset
 
+        # split data into train/test
+        ############ initial estimation 
+        num_future_steps = 1
+        category_tt_split = 'single'
+        num_mc_samples = 10
+        ppc_window = 50
+        percent_test = .01
+        features = ['Bias', 'X1', 'X2', 'Choice t-1', 'RW Side t-1', 'X1 t-1', 'X2 t-1']
+
+        y_complete = torch.tensor(y.copy(), device=device)
+        y_complete = y_complete[0:-num_future_steps]
+
+        #y, x, y_future, x_future = train_future_split(y, x, num_future_steps)
+        y_future = y
+        x_future = x
+        y_train, y_test, test_inds = train_test_split(y, x, category_tt_split, percent_test)
+        x = torch.tensor(x, dtype=dtype, device=device)
+        y_train = torch.tensor(y_train, dtype=dtype, device=device)
+        y_test = torch.tensor(y_test, dtype=dtype, device=device)
+        test_inds = torch.tensor(test_inds, dtype=torch.long, device=device)
+        y_future = torch.tensor(y_future, dtype=dtype, device=device)
+        x_future = torch.tensor(x_future, dtype=dtype, device=device)
+        #data = [y_train, x]
+        data = [y_train, x, y_test, test_inds, y_future, x_future, y_complete]
+
+        datasets.append(data)
+    embed()
     cv_bool = False
     if cv_bool:
         # parameter sweep over scale
@@ -333,7 +345,7 @@ if __name__ == '__main__':
             torch.save(model_params, output_file+'/model_structs/init_model_params.pth')
 
             model = LearningDynamicsModel(model_params, model_params_grad, dim)
-            inference = Inference(data, 
+            inference = Inference(datasets, 
                                   model, 
                                   model_params_grad, 
                                   savedir=output_file, 
@@ -355,9 +367,9 @@ if __name__ == '__main__':
 
     #init_transition_log_scale = []
     init_prior = ([0.0]*dim, [math.log(1.0)]*dim)
-    log_gamma = [math.log(.01)]*dim# .08 1e-10
+    log_gamma = [math.log(1e-10)]#*dim# .08 1e-10
     beta = 100. # sigmoid(4.) = .9820
-    log_alpha = [math.log(.01)]*dim # .1
+    log_alpha = [math.log(.01)]#*dim # .1
 
     model_params = {'init_prior': init_prior,
                     'transition_log_scale': init_transition_log_scale,
@@ -367,7 +379,7 @@ if __name__ == '__main__':
     
     model_params_grad = {'init_prior': False,
                     'transition_log_scale': False,
-                    'log_gamma': True,
+                    'log_gamma': False,
                     'beta': False,
                     'log_alpha': True}
 
@@ -375,7 +387,7 @@ if __name__ == '__main__':
     torch.save(model_params, output_file+'/model_structs/init_model_params.pth')
 
     model = LearningDynamicsModel(model_params, model_params_grad, dim)
-    inference = Inference(data, 
+    inference = Inference(datasets, 
                           model, 
                           model_params_grad, 
                           savedir=output_file, 

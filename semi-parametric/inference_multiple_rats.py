@@ -103,7 +103,7 @@ class Map(object):
 
 class Inference(object):
     def __init__(self, 
-                 data, 
+                 datasets, 
                  model, 
                  model_params_grad, 
                  savedir, 
@@ -114,16 +114,16 @@ class Inference(object):
                  z_true=None,
                  true_model_params=None,
                  iters=1000):
-        self.data = data
-        self.dim = self.data[1].size(2)
-        self.T = self.data[1].size(0)
+        self.datasets = datasets
+        self.dim = self.datasets[0][1].size(2)
+        #self.T = self.data[1].size(0)
 
-        self.train_data = self.data[0:2]
-        self.y_future = self.data[4]
-        self.x_future = self.data[5]
-        self.y_complete = self.data[6]
+        # self.train_data = self.data[0:2]
+        # self.y_future = self.data[4]
+        # self.x_future = self.data[5]
+        # self.y_complete = self.data[6]
 
-        self.num_future_steps = self.y_future.shape[0]
+        # self.num_future_steps = self.y_future.shape[0]
         self.model = model
         self.savedir = savedir
         self.num_obs_samples = num_obs_samples
@@ -170,23 +170,33 @@ class Inference(object):
         return y, x
     def map_estimate(self):
         # initialize to all ones = smooth.
-        z = torch.tensor(torch.rand(self.T, self.dim, device=device), requires_grad=True, device=device)
-        y, x = self.unpack_data(self.data)
+        #z = torch.tensor(torch.rand(self.T, self.dim, device=device), requires_grad=True, device=device)
+        z_list = []
+        for i in range(len(self.datasets)):
+            T = self.datasets[i][0].shape[0]
+            z_list.append(torch.tensor(torch.rand(T, self.dim, device=device), requires_grad=True, device=device))
+        #y, x = self.unpack_data(self.data)
         self.map_iters = 25
-        self.opt_params = [z]
+        self.opt_params = z_list
         #self.map_optimizer =  torch.optim.Adam(self.opt_params, lr=1e-3)
         self.map_optimizer = torch.optim.LBFGS(self.opt_params)
         lbfgs = True
         for t in range(self.map_iters):
             def closure():
                 self.map_optimizer.zero_grad()
-                output = -self.model.log_joint(y, x, z)
+                output = 0
+                for d in range(len(self.datasets)):
+                    y, x = self.unpack_data(self.datasets[d])
+                    output += -self.model.log_joint(y, x, z_list[d])
                 output.backward()
                 return output
             if lbfgs:
                 self.map_optimizer.step(closure)
                 with torch.no_grad():
-                    output = -self.model.log_joint(y, x, z)
+                    output = 0
+                    for d in range(len(self.datasets)):
+                        y, x = self.unpack_data(self.datasets[d])
+                        output += -self.model.log_joint(y, x, z_list[d])
             else:
                 output = -self.model.log_joint(y, x, z)
                 self.map_optimizer.zero_grad()
@@ -196,10 +206,12 @@ class Inference(object):
                 print t, output.item()
             if t % 5 == 0:
                 plt.cla()
-                plt.plot(to_numpy(z))
+                for z in z_list:
+                    plt.plot(to_numpy(z))
                 figure = plt.gcf() # get current figure
                 figure.set_size_inches(8, 6)
                 plt.savefig(self.savedir+'/plots/curr_map_z.png')
+        embed()
         return self.opt_params[0].clone().detach()
 
     def em(self):

@@ -1,3 +1,62 @@
+4/30:
+to do now:
+- implement residual block bootstrap estimation procedure. use this to estimate
+	multiple gamma. do estimates look better? X
+
+- re-run scripts
+	- multiple alpha no gamma
+	- multiple gamma no alpha
+	- multiple gamma, multiple alpha
+
+
+- running now:
+	- multiple alpha no gamma
+	- multiple gamma single alpha.
+	- 
+
+- validation
+	- held out rat
+		- sample from prior and evaluate likelihood. 
+
+
+- validation
+	- held out rat.
+		- write separate script that takes in all rats. computes log prob of each of them
+		then sums them and computes gradients. 
+		- for now figure out how to compute a single theta estimate.
+			- this involves log prob summing over rats and finding single estimates of the gradient.
+			- in this view you can treat rats as iid and bootstrap over rats. 
+			- and bootstrap over blocks.
+	- held out time points
+		- sample 
+
+
+
+- write boxplot_point_estimate_across_rats X
+	- for each alpha dimension compute boxplot across rats. 
+		- are there interesting differences in these estimates across features?
+- currently running multiple_gamma_multiple_alpha_old_parameterization
+- waiting on uncertainty estimates for multiple_alpha_old_parameterization
+	- currently have a plot of boxplot for each feature across rats using MLE estimates.
+- 
+
+
+
+- results from multiple gamma, single alpha, old parameterization makes sense
+	4.29/multiple_gamma_single_alpha_old_parameterization
+- results from multiple alpha, single gamma did not look good
+	- running again with old parameterization and single gamma = 1e-20. (fixed)
+		/multiple_alpha_old_parameterizatoin
+- need to implement block residual bootstrap
+	- re-estimate multiple alphas. are these estimates well calibrated?
+
+- figure out how to do validation
+	- for held out session
+		- simulate data? 
+		- use smc? 
+- across rats take opt params and compute confidence interval
+	of initial point estimates across rats.
+
 4/29
 jobs running tonight:
 - multiple alpha.

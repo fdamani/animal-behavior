@@ -36,45 +36,41 @@ import utils
 from utils import sigmoid
 #dtype = torch.cuda.float if torch.cuda.is_available() else torch.float
 dtype = torch.float32
-input_file = '/tigress/fdamani/neuro_output/exp1/'
+input_file = '/tigress/fdamani/neuro_output/block_residual_bootstrap/multiple_gamma_multiple_alpha/'
 
 import os
 boots = []
 rats = []
-vble = 'var_mu'
-#vble = 'log_alpha'
+#vble = 'log_gamma'
+vble = 'log_alpha'
+#vble = 'transition_log_scale'
 for file in os.listdir(input_file):
+	rats.append(file)
 	try:
 		x = torch.load(input_file+file+'/model_structs/opt_params.pth')
-		rats.append(file)
 	except:
 		continue 
-	x = x[vble].cpu().numpy()
+	if vble == 'transition_log_scale':
+		x = x[vble]
+	else:
+		x = x[vble].cpu().numpy()
 	boots.append(x)
-
-cutoff = 1000
-num_features = boots[0].shape[1]
-for i in range(num_features):
-	trajectories = []
-	for ds in boots:
-		# if ds[:,i].shape[0] < cutoff:
-		# 	continue
-		trajectories.append(ds[:cutoff,i])
-	plt.cla()
-	for j,tj in enumerate(trajectories):
-		plt.plot(tj[0:cutoff], color='blue', lw=.1)
-	for_mean_trajectory = []
-	for ds in boots:
-		if ds[:,i].shape[0] < cutoff:
-			continue
-		for_mean_trajectory.append(ds[:cutoff,i])
-	plt.plot(np.mean(np.stack(for_mean_trajectory), axis=0), color='blue', lw=1.)
-		#if j == 5: break
-
-	figure = plt.gcf() # get current figure
-	figure.set_size_inches(8, 6)
-	plt.xlabel('Trials')
-	plt.ylabel('Posterior Mean')
-	plt.savefig(input_file+vble+'_'+str(i)+'_'+'trajectory.png', dpi=200)
+boots = np.array(boots)
+fix, ax = plt.subplots()
+if vble == 'log_gamma':
+	ax.boxplot(boots.squeeze(), showfliers=False)
+else:
+	ax.boxplot(np.exp(boots.squeeze()), showfliers=False)
+ax.set_axisbelow(True)
+ax.set_xlabel('Features')
+if vble == 'log_gamma':
+	ax.set_ylabel('Log Gamma')
+elif vble == 'log_alpha':
+	ax.set_ylabel('Alpha')
+else:
+	ax.set_ylabel('Scale')
+figure = plt.gcf() # get current figure
+figure.set_size_inches(8, 6)
+plt.savefig(input_file+'/'+vble+'_'+'boxplot_mle_across_rats.png', dpi=200)
 
 

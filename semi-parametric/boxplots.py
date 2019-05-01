@@ -36,13 +36,13 @@ import utils
 from utils import sigmoid
 #dtype = torch.cuda.float if torch.cuda.is_available() else torch.float
 dtype = torch.float32
-input_file = '/tigress/fdamani/neuro_output/4.27/10obs_gammadim_alphadim/'
+input_file = '/tigress/fdamani/neuro_output/block_residual_bootstrap/multiple_gamma_multiple_alpha/'
 
 import os
 boots = []
 rats = []
-vble = 'log_gamma'
-#vble = 'log_alpha'
+#vble = 'log_gamma'
+vble = 'log_alpha'
 for file in os.listdir(input_file):
 	rats.append(file)
 	try:
@@ -53,12 +53,11 @@ for file in os.listdir(input_file):
 	boots.append(x)
 plt.cla()
 boots = np.array(boots)
-embed()
 if len(boots.shape) == 3:
 	boots = boots.T
 	for i in range(boots.shape[0]):
 		fix, ax = plt.subplots()
-		ax.boxplot(np.exp(boots[i]))
+		ax.boxplot(np.exp(boots[i]), showfliers=False)
 		ax.set_axisbelow(True)
 		ax.set_xlabel('Rats')
 		if vble == 'log_gamma':
@@ -71,11 +70,11 @@ if len(boots.shape) == 3:
 
 else:
 	fix, ax = plt.subplots()
-	ax.boxplot(np.exp(np.transpose(boots.squeeze())))
+	ax.boxplot(np.exp(np.transpose(boots.squeeze())), showfliers=False)
 	ax.set_axisbelow(True)
 	ax.set_xlabel('Rats')
 	if vble == 'log_gamma':
-		ax.set_ylabel('Gamma')
+		ax.set_ylabel('LOG Gamma')
 	else:
 		ax.set_ylabel('Alpha')
 	figure = plt.gcf() # get current figure
