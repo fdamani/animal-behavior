@@ -41,7 +41,7 @@ dtype = torch.float32
 first_half = True
 server = True
 if server:
-    output_file = '/tigress/fdamani/neuro_output/block_residual_bootstrap/multiple_gamma_multiple_alpha'
+    output_file = '/tigress/fdamani/neuro_output/scale_tests/test'
 else:
     output_file = ''
     if first_half:
@@ -147,7 +147,7 @@ if __name__ == '__main__':
     grad_model_params = False
     inference_types = ['map', 'mfvi', 'is', 'smc', 'vsmc']
     inference_type = inference_types[4]
-    sim = False
+    sim = True
     file_path = '/tigress/fdamani/neuro_output/'
     # file_path = 'output/'
     savedir = file_path
@@ -170,17 +170,17 @@ if __name__ == '__main__':
         os.makedirs(output_file+'/data')
         os.makedirs(output_file+'/plots')
         # T = 200 # 100
-        T = 1000
+        T = 10000
         # time-series model
         # sim model parameters
         dim = 3
         init_prior = ([0.0]*dim, [math.log(1.0)]*dim)
-        transition_log_scale = [math.log(5e-2)]# * dim
-        log_gamma = math.log(1e-10) # 0.08
+        transition_log_scale = [math.log(.05)]# * dim
+        log_gamma = math.log(1e-20) # 0.08
         #log_gamma = math.log(0.00000004)
         
         beta = 100. # try -3, 0.
-        log_alpha = math.log(.1) # .1
+        log_alpha = math.log(1e-20) # .1
         
         true_model_params = {'init_prior': init_prior,
                         'transition_log_scale': transition_log_scale,
@@ -193,9 +193,9 @@ if __name__ == '__main__':
                 'log_gamma': True,
                 'beta': False,
                 'log_alpha': False}
-        model = LearningDynamicsModel(true_model_params, model_params_grad, dim=3)
-        num_obs_samples = 500
-        y, x, z_true = model.sample(T=T, num_obs_samples=num_obs_samples)
+        model = LearningDynamicsModel(true_model_params, model_params_grad, dim=dim)
+        num_obs_samples = 1
+        y, x, z_true = model.sample(T=T, num_obs_samples=num_obs_samples, dim=dim)
         
         rw = torch.mean(model.rat_reward_vec(y, x), dim=1)
         # window=100
@@ -238,7 +238,7 @@ if __name__ == '__main__':
         output_file += '/'+rat
         # output_file += '__obs'+str(num_obs_samples)
 
-        #output_file += '_'+str(datetime.datetime.now())
+        output_file += '_'+str(datetime.datetime.now())
         os.makedirs(output_file)
         os.makedirs(output_file+'/model_structs')
         os.makedirs(output_file+'/data')
@@ -281,7 +281,7 @@ if __name__ == '__main__':
     category_tt_split = 'single'
     num_mc_samples = 10
     ppc_window = 50
-    percent_test = .01
+    percent_test = .2
     features = ['Bias', 'X1', 'X2', 'Choice t-1', 'RW Side t-1', 'X1 t-1', 'X2 t-1']
 
     y_complete = torch.tensor(y.copy(), device=device)
@@ -355,9 +355,9 @@ if __name__ == '__main__':
 
     #init_transition_log_scale = []
     init_prior = ([0.0]*dim, [math.log(1.0)]*dim)
-    log_gamma = [math.log(.01)]*dim# .08 1e-10
+    log_gamma = [math.log(1e-20)]*dim# .08 1e-10
     beta = 100. # sigmoid(4.) = .9820
-    log_alpha = [math.log(.01)]*dim # .1
+    log_alpha = [math.log(1e-20)]*dim # .1
 
     model_params = {'init_prior': init_prior,
                     'transition_log_scale': init_transition_log_scale,
@@ -366,10 +366,10 @@ if __name__ == '__main__':
                     'log_alpha': log_alpha}
     
     model_params_grad = {'init_prior': False,
-                    'transition_log_scale': False,
-                    'log_gamma': True,
+                    'transition_log_scale': True,
+                    'log_gamma': False,
                     'beta': False,
-                    'log_alpha': True}
+                    'log_alpha': False}
 
     torch.save(model_params_grad, output_file+'/model_structs/model_params_grad.pth')
     torch.save(model_params, output_file+'/model_structs/init_model_params.pth')
@@ -386,7 +386,7 @@ if __name__ == '__main__':
                           z_true=z_true,
                           true_model_params=true_model_params) # pass in just for figures
     
-    opt_params = inference.em()
+    opt_params = inference.run()
 
     final_loss = -inference.vi.forward_multiple_mcs(inference.train_data, inference.var_params, 50, num_samples=100) #/ float(inference.num_train)
     

@@ -21,6 +21,9 @@ import evaluation
 from evaluation import Evaluate
 process = psutil.Process(os.getpid())
 
+#from LBFGS import LBFGS, FullBatchLBFGS
+
+
 # set random seed
 torch.manual_seed(7)
 np.random.seed(7)
@@ -202,7 +205,7 @@ class Inference(object):
                 plt.savefig(self.savedir+'/plots/curr_map_z.png')
         return self.opt_params[0].clone().detach()
 
-    def em(self):
+    def run(self):
         # optimize model parameters conditioned on vi
         # self.var_params[0].requires_grad = False
         # self.var_params[1].requires_grad = False
@@ -218,23 +221,24 @@ class Inference(object):
         self.var_params[1].requires_grad = True
         #self.var_params = self.vi.init_var_params(self.T, self.dim, self.init_z, grad=True)
         #self.model.transition_log_scale.requires_grad = True
-        self.opt_params = {'var_mu': self.var_params[0], 
-                   'var_log_scale': self.var_params[1]}
+        # self.opt_params = {'var_mu': self.var_params[0], 
+        #            'var_log_scale': self.var_params[1]}
         for k,v in self.model_params_grad.items():
             if v == True:
                 self.opt_params[k] = self.model.params[k]
-        self.optimizer = torch.optim.Adam(self.opt_params.values(), 1e-3)
+        #self.optimizer = torch.optim.Adam(self.opt_params.values(), 1e-3)
         #self.optimizer = torch.optim.Adam(self.opt_params.values(), lr=1e-2)
-        #return self.optimize(5000, True, 1000)
-        return self.optimize(80000, False, 1000)
+        self.optimizer = torch.optim.LBFGS(self.opt_params.values(), history_size=50, max_iter=2, lr=.8)
+        #self.optimizer = FullBatchLBFGS(self.opt_params.values(), lr=1, history_size=10, line_search='Wolfe')
+        return self.optimize(1000, True, 1)
+        #return self.optimize(80000, False, 100)
         #return self.optimize(100000, False, 10000)
 
     def optimize(self, iters, lbfgs, print_every):
         y, x = self.train_data[0], self.train_data[1]
-
         print 'optimizing...'
         outputs = []
-        clip = 5.
+        #clip = 5.
         curr_model_params = {}
         for k,v in self.model_params_grad.items():
             if v == True:
@@ -242,6 +246,7 @@ class Inference(object):
         #var_clip = 5.
         #model_param_clip = 500.
         #lbfgs = lbfgs
+
         self.iters = iters
         for t in range(self.iters):
             # if t == 10000:
@@ -250,17 +255,24 @@ class Inference(object):
             def closure():
                 self.optimizer.zero_grad()
                 t=1
-                output = -self.vi.forward(self.train_data, self.var_params, t) / float(self.num_train)
-                outputs.append(output.item())
+                #output = -self.vi.forward(self.train_data, self.var_params, t) #/ float(self.num_train)
+                output = -self.vi.forward_multiple_mcs(self.train_data, self.var_params, t) #/ float(self.num_train)
+
+                #outputs.append(output.item())
                 output.backward()
                 return output
             if lbfgs:
+                #print self.opt_params.values()[0].grad
+                #print self.opt_params.values()[1].grad
+                #print self.opt_params.values()[2].grad
+                
+                #torch.nn.utils.clip_grad_norm(self.opt_params.values(), clip)
                 self.optimizer.step(closure)
                 with torch.no_grad():
-                    output = -self.vi.forward(self.train_data, self.var_params, t) / float(self.num_train)
+                    output = -self.vi.forward(self.train_data, self.var_params, t) #/ float(self.num_train)
             else:
                 self.optimizer.zero_grad()
-                output = -self.vi.forward(self.train_data, self.var_params, t) / float(self.num_train)
+                output = -self.vi.forward(self.train_data, self.var_params, t) #/ float(self.num_train)
                 outputs.append(output.item())
                 output.backward()
                 self.optimizer.step()
@@ -315,7 +327,9 @@ class Inference(object):
                 plt.cla()
                 labels = ['Bias', 'X1', 'X2', 'Choice t-1', 'RW Side t-1', 'X1 t-1', 'X2 t-1']
                 for j in range(zx_scale.shape[1]):
-                    plt.plot(zx[:,j], label=labels[j], linewidth=.5)
+                    #plt.plot(zx[:,j], label=labels[j], linewidth=.5)
+                    plt.plot(zx[:,j], linewidth=.5)
+                    
                     # plt.fill_between(np.arange(zx.shape[0]), zx[:,j] - zx_scale[:,j],  zx[:,j] + zx_scale[:,j])
                 figure = plt.gcf() # get current figure
                 figure.set_size_inches(12, 8)
@@ -325,7 +339,9 @@ class Inference(object):
                 zx_test = zx[test_inds]
                 plt.cla()
                 for j in range(zx_scale.shape[1]):
-                    plt.plot(zx_test[:,j], label=labels[j], linewidth=.5)
+                    #plt.plot(zx_test[:,j], label=labels[j], linewidth=.5)
+                    plt.plot(zx_test[:,j], linewidth=.5)
+
                 plt.savefig(self.savedir+'/plots/curr_est_test_z.png')
 
 
@@ -386,7 +402,7 @@ class MeanFieldVI(object):
         entropy = torch.sum(var_dist.entropy())
         return (data_term + entropy)
 
-    def forward_multiple_mcs(self, data, var_params, itr, num_samples=1):
+    def forward_multiple_mcs(self, data, var_params, itr, num_samples=10):
         '''
             useful for analytic kl  kl = torch.distributions.kl.kl_divergence(z_dist, self.prior).sum(-1)
         '''

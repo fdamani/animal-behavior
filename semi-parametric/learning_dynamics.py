@@ -167,8 +167,11 @@ class LearningDynamicsModel(object):
         logprob = 0
 
         logprob += self.log_init_prior(z[0][None])
+        #print 'init prior: ', self.log_init_prior(z[0][None]).item()
         logprob += self.log_prior_vec(z, y, x)
+        #print 'prior: ', self.log_prior_vec(z, y, x).item()
         logprob += self.log_likelihood_vec(y, x, z)
+        #print 'lh: ', self.log_likelihood_vec(y, x, z).item()
         return logprob
     
     def log_joint_batch(self, y, x, z):
