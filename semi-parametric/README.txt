@@ -1,3 +1,11 @@
+5/2
+
+- add prior on scale
+	- try map estimation using adam vs sgd vs lbfgs
+	- try variational posterior
+
+
+
 4/30:
 to do now:
 - implement residual block bootstrap estimation procedure. use this to estimate

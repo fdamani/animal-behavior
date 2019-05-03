@@ -27,7 +27,8 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 if torch.cuda.is_available():
     matplotlib.use('Agg')
 import matplotlib.pyplot as plt
-dtype = torch.float32
+#dtype = torch.float32
+dtype = torch.double
 
 global_params = []
 
@@ -235,14 +236,14 @@ class Evaluate(object):
         train_inds = self.model.return_train_ind(y_train)
         logits_train = logits[train_inds]
         train_probs = torch.sigmoid(logits_train)
-        train_preds = torch.tensor(train_probs.detach() > .5, device=device, dtype=torch.float)
-        train_accuracy = torch.mean(torch.tensor(train_preds == y_train[train_inds], device=device, dtype=torch.float))
+        train_preds = torch.tensor(train_probs.detach() > .5, device=device, dtype=dtype)
+        train_accuracy = torch.mean(torch.tensor(train_preds == y_train[train_inds], device=device, dtype=dtype))
         
         # compute validation accuracy
         logits_test = logits[test_inds]
         test_probs = torch.sigmoid(logits_test)
-        test_preds = torch.tensor(test_probs.detach() > .5, device=device, dtype=torch.float)
-        test_accuracy = torch.mean(torch.tensor(test_preds == y_test, device=device, dtype=torch.float))
+        test_preds = torch.tensor(test_probs.detach() > .5, device=device, dtype=dtype)
+        test_accuracy = torch.mean(torch.tensor(test_preds == y_test, device=device, dtype=dtype))
 
 
         return train_accuracy, test_accuracy
@@ -281,8 +282,8 @@ class Evaluate(object):
             # compute log prob
             log_lh.append(self.model.log_likelihood(y_true_future, x_future, z_future))
 
-        log_lh = torch.tensor(log_lh, device=device)
-        marginal_lh = -torch.log(torch.tensor(float(num_mc_samples), device=device)) + \
+        log_lh = torch.tensor(log_lh, dtype=dtype, device=device)
+        marginal_lh = -torch.log(torch.tensor(float(num_mc_samples), dtype=dtype, device=device)) + \
             torch.logsumexp(log_lh, dim=0)
 
         marginal_lh = marginal_lh / float(num_future_samples)

@@ -25,7 +25,8 @@ torch.manual_seed(7)
 np.random.seed(7)
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-dtype = torch.float32
+#dtype = torch.float32
+dtype = torch.double
 #if torch.cuda.is_available():
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
@@ -51,17 +52,17 @@ class LearningDynamicsModel(object):
 
 
         self.init_latent_loc = torch.tensor([init_prior[0]], 
-            requires_grad=self.model_params_grad['init_prior'], device=device)
+            requires_grad=self.model_params_grad['init_prior'], dtype=dtype, device=device)
         self.init_latent_log_scale = torch.tensor([init_prior[1]], 
-            requires_grad = self.model_params_grad['init_prior'], device=device)
+            requires_grad = self.model_params_grad['init_prior'], dtype=dtype, device=device)
         self.transition_log_scale = torch.tensor([transition_log_scale], 
-            requires_grad=self.model_params_grad['transition_log_scale'], device=device)
+            requires_grad=self.model_params_grad['transition_log_scale'], dtype=dtype, device=device)
         self.log_alpha = torch.tensor(log_alpha,
-            requires_grad=self.model_params_grad['log_alpha'], device=device)
+            requires_grad=self.model_params_grad['log_alpha'], dtype=dtype, device=device)
         self.beta = torch.tensor([beta],
-            requires_grad=self.model_params_grad['beta'], device=device)
+            requires_grad=self.model_params_grad['beta'], dtype=dtype, device=device)
         self.log_gamma = torch.tensor(log_gamma,
-            requires_grad=self.model_params_grad['log_gamma'], device=device)
+            requires_grad=self.model_params_grad['log_gamma'], dtype=dtype, device=device)
     
         self.params = {}
         self.params['init_prior'] = (self.init_latent_loc, self.init_latent_log_scale)
@@ -70,7 +71,7 @@ class LearningDynamicsModel(object):
         self.params['beta'] = self.beta
         self.params['log_gamma'] = self.log_gamma
 
-        self.sparsity_dims = torch.ones(self.dim, device=device)
+        self.sparsity_dims = torch.ones(self.dim, dtype=dtype, device=device)
         #self.sparsity_dims[4] = 1
         #self.sparsity_dims[1:3] = 0
 
@@ -81,17 +82,16 @@ class LearningDynamicsModel(object):
             sample latent variables and observations
         '''
         # generate 1D x from standard normal
-        intercept = torch.ones(T, num_obs_samples, 1, device=device)
+        intercept = torch.ones(T, num_obs_samples, 1, dtype=dtype, device=device)
         if x is None: 
-            x = torch.randn(T, num_obs_samples, dim-1, device=device)
+            x = torch.randn(T, num_obs_samples, dim-1, dtype=dtype, device=device)
             x = torch.cat([intercept, x], dim=2)
         
         z = [self.sample_init_prior()]
-        z[0][0][1] = torch.tensor(-1., device=device)
-        z[0][0][2] = torch.tensor(1., device=device)
+        z[0][0][1] = torch.tensor(-1., dtype=dtype, device=device)
+        z[0][0][2] = torch.tensor(1., dtype=dtype, device=device)
         # set second value to -1.
         # set 3rd value to +1
-
         y = [self.sample_likelihood(x[0], z[0], num_obs_samples)]
         for i in range(1, T):
             # sample and append a new z
@@ -157,12 +157,14 @@ class LearningDynamicsModel(object):
         prior = Normal(self.init_latent_loc, torch.exp(self.init_latent_log_scale)) 
         return torch.sum(prior.log_prob(z), dim=-1)
 ## vectorized functions ##
-    def log_joint(self, y, x, z):
+    def log_joint(self, y, x, z, scale_loc=None):
         '''
         input: x (observations T x D)
         input: latent_mean
         return logpdf under the model parameters
         '''
+        if scale_loc is not None:
+            self.transition_log_scale = scale_loc
         T = y.size(0)
         logprob = 0
 
@@ -211,7 +213,7 @@ class LearningDynamicsModel(object):
 
     def compute_momentum_vector(self, grad):
         mtm = [] #torch.zeros_like(grad, device=device)
-        mtm.append(torch.zeros(grad.shape[1], device=device))
+        mtm.append(torch.zeros(grad.shape[1], dtype=dtype, device=device))
         for i in range(1, grad.shape[0]):
             mtm.append(grad[i-1] + mtm[i-1] * .6)
      
@@ -248,10 +250,11 @@ class LearningDynamicsModel(object):
             mean = z_prev - torch.exp(self.log_alpha) * grad_loss
             #mean = z_prev - grad_loss
 
+        prior_scale = Normal(-3.5, .1)
         scale = torch.exp(self.transition_log_scale)
         prior = Normal(mean, scale)
-        return torch.sum(prior.log_prob(z_curr)) #, -grad_rat_obj, regularization_comp
-
+        return torch.sum(prior.log_prob(z_curr)) \
+            + torch.sum(prior_scale.log_prob(self.transition_log_scale)) #, -grad_rat_obj, regularization_comp
 
     def log_prior_relative_contrib(self, z, y, x):
         '''
@@ -334,7 +337,7 @@ class LearningDynamicsModel(object):
         prob_y_0_given_x_z = 1.0 - prob_y_1_given_x_z
 
         # r(action=1, x)
-        r_y_1_x = self.rat_reward(torch.tensor([1], device=device), x)
+        r_y_1_x = self.rat_reward(torch.tensor([1], dtype=dtype, device=device), x)
         r_y_0_x = 1.0 - r_y_1_x
 
         return prob_y_1_given_x_z * r_y_1_x + prob_y_0_given_x_z * r_y_0_x
@@ -348,13 +351,13 @@ class LearningDynamicsModel(object):
         prob_y_0_given_x_z = 1.0 - prob_y_1_given_x_z
 
         # r(action=1, x)
-        r_y_1_x = self.rat_reward(torch.tensor([1.], device=device), x)
+        r_y_1_x = self.rat_reward(torch.tensor([1.], dtype=dtype, device=device), x)
         r_y_0_x = 1.0 - r_y_1_x
 
         # grad of logistic regression: x_n(y_n - sigmoid(z^t x))
-        y_1 = torch.ones(y.size(0), 1, device=device)
+        y_1 = torch.ones(y.size(0), 1, dtype=dtype, device=device)
         grad_log_policy_y1 = self.grad_rat_policy(y_1, x, z)
-        y_0 = torch.zeros(y.size(0), 1, device=device)
+        y_0 = torch.zeros(y.size(0), 1, dtype=dtype, device=device)
         grad_log_policy_y0 = self.grad_rat_policy(y_0, x, z)
         per_sample_gradient = prob_y_1_given_x_z * grad_log_policy_y1 * r_y_1_x + \
             prob_y_0_given_x_z * grad_log_policy_y0 * r_y_0_x
@@ -377,7 +380,7 @@ class LearningDynamicsModel(object):
         prob_y_0_given_x_z = 1.0 - prob_y_1_given_x_z
 
         # r(action=1, x)
-        r_y_1_x = self.rat_reward_vec(torch.tensor([1.], device=device), x)
+        r_y_1_x = self.rat_reward_vec(torch.tensor([1.], dtype=dtype, device=device), x)
         r_y_0_x = 1.0 - r_y_1_x
 
         if smoothed_reward:
@@ -387,8 +390,8 @@ class LearningDynamicsModel(object):
             convolved_rw = (np.convolve(rw.detach().cpu().numpy().flatten(), weights)[:-k+1]) / float(np.sum(weights))
 
             #convolved_rw = (np.convolve(rw.detach().cpu().numpy().flatten(), np.ones(k))[:-k+1]) / float(k)
-            prev_conv_rw = torch.ones(rw.shape[0], device=device)
-            prev_conv_rw[1:] = torch.tensor(convolved_rw[:-1], device=device)
+            prev_conv_rw = torch.ones(rw.shape[0], dtype=dtype, device=device)
+            prev_conv_rw[1:] = torch.tensor(convolved_rw[:-1], dtype=dtype, device=device)
             r_y_1_x = r_y_1_x * prev_conv_rw[:, None]
             r_y_0_x = r_y_0_x * prev_conv_rw[:, None]
 
@@ -396,10 +399,10 @@ class LearningDynamicsModel(object):
         # rw_avg = np.convolve(actual_rewards, np.ones(10))/ 10.0
 
         # grad of logistic regression: x_n(y_n - sigmoid(z^t x))
-        y_1 = torch.ones(y.size(0), y.size(1), device=device)
+        y_1 = torch.ones(y.size(0), y.size(1), dtype=dtype, device=device)
         grad_log_policy_y1 = self.grad_rat_policy_vec(y_1, x, z)
 
-        y_0 = torch.zeros(y.size(0), y.size(1), device=device)
+        y_0 = torch.zeros(y.size(0), y.size(1), dtype=dtype, device=device)
         grad_log_policy_y0 = self.grad_rat_policy_vec(y_0, x, z)
 
         per_sample_gradient = prob_y_1_given_x_z[:,:,None] * grad_log_policy_y1 * r_y_1_x[:,:,None] + \
@@ -450,7 +453,7 @@ class LearningDynamicsModel(object):
         stim1 = x[:, 1].unsqueeze(dim=1)
         stim2 = x[:, 2].unsqueeze(dim=1)
         rewards = ((stim1 > stim2)*(action==1) + (stim1 < stim2)*(action==0))
-        return rewards.float()
+        return rewards.double()
 
     def rat_reward_vec(self, action, x):
         '''
@@ -462,7 +465,7 @@ class LearningDynamicsModel(object):
         stim1 = x[:, :, 1]#.unsqueeze(dim=1)
         stim2 = x[:, :, 2]#.unsqueeze(dim=1)
         rewards = ((stim1 > stim2)*(action==1) + (stim1 < stim2)*(action==0))
-        return rewards.float()
+        return rewards.double()
 
     def grad_rat_policy_vec(self, y, x, z):
         '''gradient of logistic regression

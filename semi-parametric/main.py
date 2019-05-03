@@ -35,7 +35,8 @@ import datetime
 import utils
 from utils import sigmoid
 #dtype = torch.cuda.float if torch.cuda.is_available() else torch.float
-dtype = torch.float32
+#dtype = torch.float32
+dtype = torch.double
 
 #output_file = sys.argv[1]
 first_half = True
@@ -170,7 +171,7 @@ if __name__ == '__main__':
         os.makedirs(output_file+'/data')
         os.makedirs(output_file+'/plots')
         # T = 200 # 100
-        T = 10000
+        T = 500
         # time-series model
         # sim model parameters
         dim = 3
@@ -194,7 +195,7 @@ if __name__ == '__main__':
                 'beta': False,
                 'log_alpha': False}
         model = LearningDynamicsModel(true_model_params, model_params_grad, dim=dim)
-        num_obs_samples = 1
+        num_obs_samples = 10
         y, x, z_true = model.sample(T=T, num_obs_samples=num_obs_samples, dim=dim)
         
         rw = torch.mean(model.rat_reward_vec(y, x), dim=1)
@@ -207,9 +208,9 @@ if __name__ == '__main__':
         y = y.detach().cpu().numpy()
         x = x.detach().cpu().numpy()
         z_true = z_true.detach().cpu().numpy()
-        plt.cla()
-        plt.plot(z_true)
-        plt.savefig(output_file+'/plots/sim_z.png')
+        # plt.cla()
+        # plt.plot(z_true, alpha=.5)
+        # plt.savefig(output_file+'/plots/sim_z.png')
 
         # rw = torch.mean(model.rat_reward_vec(torch.tensor(y, device=device), torch.tensor(x,device=device)), dim=1)
         # ppc_window=100
@@ -220,8 +221,18 @@ if __name__ == '__main__':
         # plt.show()
 
         # model params
+        # import sim
+        # params = sim.generateSim()
+        # z_true = params['W']
+        # x = params['X'][:, None, :]
+        # y = params['all_Y'][0][:,None]
+
+        plt.cla()
+        plt.plot(z_true, alpha=.5)
+        plt.savefig(output_file+'/plots/sim_z.png')
+
     else:
-        num_obs_samples = 1
+        num_obs_samples = 10
         #f = '/tigress/fdamani/neuro_data/data/clean/LearningData_W066_minmaxnorm.txt'
         # data file
         index = int(sys.argv[1])
@@ -366,7 +377,7 @@ if __name__ == '__main__':
                     'log_alpha': log_alpha}
     
     model_params_grad = {'init_prior': False,
-                    'transition_log_scale': True,
+                    'transition_log_scale': False,
                     'log_gamma': False,
                     'beta': False,
                     'log_alpha': False}
