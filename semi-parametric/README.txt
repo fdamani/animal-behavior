@@ -1,7 +1,16 @@
 5/5
+
+- fixed bootstrap code.
+- now lets get this to work on the server with gpus.
+- fine tune sgd so its fast and converges well.
+- run reward-dependent learning results for all rats.
+
+
+
+
 to do
 - get code working on server
-- bootstrap estimates of reward-dependent learning rate across a population of rats
+- bootstrap estimates of reward-dependent learning rate across a population of rats 
 - cross-validation results
 	- across a range of models for held out session, randomly held out trials.
 - held out rat.

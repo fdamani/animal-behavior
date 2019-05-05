@@ -32,7 +32,7 @@ import matplotlib.pyplot as plt
 dtype = torch.float32
 
 
-def read_and_process(num_obs, f, savedir):
+def read_and_process(num_obs, f, savedir, proficient=False):
 	raw_data = pd.read_csv(f)
 	header = raw_data.columns
 	# raw_data = np.loadtxt(f, skiprows=1, delimiter=',', usecols=(range(0,3)))
@@ -71,7 +71,6 @@ def read_and_process(num_obs, f, savedir):
 	plt.savefig(savedir+'/rw_complete.png')
 
 	ind = np.where(rw_avg >= .75)[0][0] + 500
-	proficient = True
 	if proficient:
 		x = x[ind:]
 		y = y[ind:]
@@ -208,11 +207,11 @@ def train_test_split(y, x, cat, percent_test=.2):
 		y_train = y
 		y_train[test_inds] = -1
 	elif cat == 'session':
-		window_size = 250
+		window_size = 10
 		T = y.shape[0]
 		num_obs = y.shape[1]
 		dim = x.shape[2]
-		start_ind = 500
+		start_ind = 100
 		#start_ind = int(.2* T)
 		test_inds = np.arange(start_ind, start_ind+window_size)
 		inds = np.arange(T)

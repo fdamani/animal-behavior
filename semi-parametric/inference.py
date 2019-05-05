@@ -174,7 +174,7 @@ class Inference(object):
         # initialize to all ones = smooth.
         z = torch.tensor(torch.rand(self.T, self.dim, dtype=dtype, device=device), requires_grad=True, dtype=dtype, device=device)
         y, x = self.unpack_data(self.data)
-        self.map_iters = 50
+        self.map_iters = 10
         self.opt_params = [z]
         #self.map_optimizer =  torch.optim.Adam(self.opt_params, lr=1e-3)
         self.map_optimizer = torch.optim.LBFGS(self.opt_params)
@@ -206,7 +206,7 @@ class Inference(object):
 
     def run(self):
         self.optimizer = torch.optim.SGD(self.opt_params.values(), momentum=0.99, lr=1e-6)
-        return self.optimize(200000, False, 1000)
+        return self.optimize(50, False, 1000)
 
     def optimize(self, iters, lbfgs, print_every):
         y, x = self.train_data[0], self.train_data[1]
@@ -299,6 +299,9 @@ class Inference(object):
                 plt.savefig(self.savedir+'/plots/curr_est_test_z.png')
 
 
+        test_marginal = self.ev.valid_loss(self.opt_params)
+        np.savetxt(self.savedir+'/test_marginal.txt', np.array([test_marginal.item()]))
+        print 'final test marginal: ', test_marginal.item()
             # detach and clone all params
         for k in self.opt_params.keys():
             self.opt_params[k] = self.opt_params[k].clone().detach()
@@ -306,16 +309,15 @@ class Inference(object):
 
 
         # access learning and regularization components
-        learning, regularization = self.model.log_prior_relative_contrib(self.var_params[0], y, x)
-        torch.save(learning.clone().detach(), self.savedir+'/model_structs/learning_after_training.pth')
-        torch.save(regularization.clone().detach(), self.savedir+'/model_structs/regularization_after_training.pth')
-        plt.cla()
-        plt.plot(to_numpy(learning.clone().detach()))
-        plt.savefig(self.savedir+'/plots/learning_after_training.png')
-        plt.cla()
-        plt.plot(to_numpy(regularization.clone().detach()))
-        plt.savefig(self.savedir+'/plots/regularization_after_training.png')
-        
+        #learning, regularization = self.model.log_prior_relative_contrib(self.var_params[0], y, x)
+        #torch.save(learning.clone().detach(), self.savedir+'/model_structs/learning_after_training.pth')
+        #torch.save(regularization.clone().detach(), self.savedir+'/model_structs/regularization_after_training.pth')
+        #plt.cla()
+        #plt.plot(to_numpy(learning.clone().detach()))
+        #plt.savefig(self.savedir+'/plots/learning_after_training.png')
+        #plt.cla()
+        #plt.plot(to_numpy(regularization.clone().detach()))
+        #plt.savefig(self.savedir+'/plots/regularization_after_training.png')
         return self.opt_params
 
 class MeanFieldVI(object):
@@ -387,7 +389,7 @@ class MeanFieldVI(object):
         entropy_mod = torch.sum(var_dist_model.entropy())
         return (data_term + entropy + entropy_mod)
 
-    def forward_multiple_mcs(self, data, var_params, itr, num_samples=5):
+    def forward_multiple_mcs(self, model_params, data, var_params, itr, num_samples=5):
         '''
             useful for analytic kl  kl = torch.distributions.kl.kl_divergence(z_dist, self.prior).sum(-1)
         '''
@@ -401,7 +403,7 @@ class MeanFieldVI(object):
         #data_term = self.model.log_joint(y, x, samples[0])
         data_terms = torch.empty(num_samples, device=device)
         for i in range(len(samples)):
-            data_terms[i] = self.model.log_joint(y, x, samples[i])
+            data_terms[i] = self.model.log_joint(model_params, y, x, samples[i])
         data_term = torch.mean(data_terms)
         entropy = torch.sum(var_dist.entropy())
         return (data_term + entropy)

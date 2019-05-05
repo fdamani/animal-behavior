@@ -55,6 +55,80 @@ def to_numpy(tx):
 def compute_mean_and_std(x):
     return x.mean(), x.std()
 
+def simulate_datasets(model_params,
+                      model_params_grad,
+                      dim, 
+                      num_obs_samples, 
+                      num_datasets, data):
+    '''
+        block residual bootstrap.
+    '''
+    # instantiate model
+    y_train, x, y_test, test_inds, y_future, x_future, y_complete = data
+    T = y_train.shape[0]
+    num_blocks = 100.
+    num_obs_per_block = int(T / num_blocks)
+    block_inds = np.arange(0, T, step=num_obs_per_block)[:-1]
+    datasets = []
+    for i in range(num_datasets):
+        sample = np.random.choice(block_inds, size=int(num_blocks))
+        y_b = torch.stack([y_train[sam:sam+num_obs_per_block] for sam in sample]).reshape(-1,num_obs_samples)
+        x_b = torch.stack([x[sam:sam+num_obs_per_block] for sam in sample]).reshape(-1, num_obs_samples, dim)
+        datasets.append((y_b, x_b))
+    return datasets
+
+def estimation(dataset,
+               boot_index,
+               model_params,
+               model_params_grad, 
+               num_obs_samples, 
+               num_future_steps, 
+               category_tt_split,
+               num_mc_samples,
+               output_file,
+               true_model_params=None):
+    y, x = dataset
+    y_complete = y.clone().detach()
+    y_complete = y_complete[0:-num_future_steps]
+    category_tt_split = 'session'
+    y, x, y_future, x_future = train_future_split(y, x, num_future_steps)
+    y_train, y_test, test_inds = train_test_split(y.cpu(), x.cpu(), cat=category_tt_split)
+    x = x.clone().detach() #torch.tensor(x, dtype=dtype, device=device)
+    y_train = y_train.clone().detach() #torch.tensor(y_train, dtype=dtype, device=device)
+    y_test = torch.tensor(y_test, dtype=dtype, device=device)
+    test_inds = torch.tensor(test_inds, dtype=torch.long, device=device)
+    y_future = y_future.clone().detach() #torch.tensor(y_future, dtype=dtype, device=device)
+    x_future = x_future.clone().detach() #torch.tensor(x_future, dtype=dtype, device=device)
+
+    y_train = torch.tensor(y, device=device)
+    data = [y_train, x, y_test, test_inds, y_future, x_future, y_complete]
+
+
+    model = LearningDynamicsModel(dim=dim)
+
+    boot_output_file = output_file+'/'+str(boot_index)
+    os.makedirs(boot_output_file)
+    os.makedirs(boot_output_file+'/model_structs')
+    os.makedirs(boot_output_file+'/data')
+    os.makedirs(boot_output_file+'/plots')
+    
+    inference = Inference(data=data, 
+                          model=model,
+                          model_params=model_params,
+                          model_params_grad=model_params_grad,
+                          savedir=boot_output_file,
+                          num_obs_samples=num_obs_samples, 
+                          num_future_steps=num_future_steps, 
+                          num_mc_samples=num_mc_samples,
+                          ppc_window=50,
+                          z_true=z_true,
+                          true_model_params=true_model_params) # pass in just for figures
+
+    opt_params = inference.run()
+    torch.save(opt_params, boot_output_file+'/model_structs/opt_params.npy')
+    torch.save(dataset, boot_output_file+'/data/dataset.npy')
+    torch.save(model_params, boot_output_file+'/model_structs/model_params.npy')
+    return opt_params
 
 if __name__ == '__main__':
 
@@ -140,11 +214,10 @@ if __name__ == '__main__':
         os.makedirs(output_file+'/plots')
         savedir = output_file
 
-   
         x, y, rw = read_and_process(num_obs_samples, f, savedir=savedir)
-        x = x[0:7000]
-        y = y[0:7000]
-        rw = rw[0:7000]
+        x = x[0:500]
+        y = y[0:500]
+        rw = rw[0:500]
         rw = torch.tensor(rw, dtype=dtype, device=device)
         z_true = None
         true_model_params=None
@@ -181,13 +254,13 @@ if __name__ == '__main__':
     model_params_grad = {'init_latent_loc': False,
                     'init_latent_log_scale': False,
                     'transition_log_scale': True,
-                    'log_gamma': False,
+                    'log_gamma': True,
                     'beta': False,
                     'log_alpha': True}
     model_params = {'init_latent_loc': torch.tensor([0.0]*dim, dtype=dtype,  device=device, requires_grad=model_params_grad['init_latent_loc']),
                     'init_latent_log_scale': torch.tensor([math.log(1.0)]*dim, dtype=dtype, device=device, requires_grad=model_params_grad['init_latent_log_scale']),
-                    'transition_log_scale': torch.tensor([math.log(.05)], dtype=dtype, device=device, requires_grad=model_params_grad['transition_log_scale']),
-                    'log_gamma': torch.tensor([math.log(.000005)]*dim, dtype=dtype, device=device, requires_grad=model_params_grad['log_gamma']),
+                    'transition_log_scale': torch.tensor([math.log(.05)]*dim, dtype=dtype, device=device, requires_grad=model_params_grad['transition_log_scale']),
+                    'log_gamma': torch.tensor([math.log(.005)]*dim, dtype=dtype, device=device, requires_grad=model_params_grad['log_gamma']),
                     'beta': torch.tensor([100.], dtype=dtype, device=device, requires_grad=model_params_grad['beta']),
                     'log_alpha': torch.tensor([math.log(.05)]*2, dtype=dtype, device=device, requires_grad=model_params_grad['log_alpha'])}
 
@@ -210,7 +283,7 @@ if __name__ == '__main__':
     opt_params = inference.run()
     embed()
 
-    final_loss = -inference.vi.forward_multiple_mcs(inference.train_data, inference.var_params, 50, num_samples=100) #/ float(inference.num_train)
+    final_loss = -inference.vi.forward_multiple_mcs(model_params, inference.train_data, inference.var_params, 50, num_samples=100) #/ float(inference.num_train)
     
     k = float(2*dim)
     bic = (2 * final_loss.item() + k * np.log(T * num_obs_samples)) / float(T * num_obs_samples)
@@ -230,9 +303,10 @@ if __name__ == '__main__':
 
     ################### bootstrap ################################################
     ####### this doesn't work yet.
-    num_datasets = 25
+    num_datasets = 4
     sim_datasets = simulate_datasets(opt_params, model_params_grad, dim, num_obs_samples, num_datasets, data)
-    bootstrapped_params = {'init_prior': [],
+    bootstrapped_params = {'init_latent_loc': [],
+                            'init_latent_log_scale': [],
                            'transition_log_scale': [],
                            'log_gamma': [],
                            'beta': [],
@@ -260,14 +334,13 @@ if __name__ == '__main__':
             vx = torch.stack(v).squeeze(dim=-1)
             #vx = [to_numpy(el) for el in v]
             fix, ax = plt.subplots()
-            embed()
             ax.boxplot(to_numpy(vx))
             ax.set_axisbelow(True)
             ax.set_xlabel('Feature')
             ax.set_ylabel(k)
             # plot theta hat
-            if len(opt_params[k]) == 1:
-                ax.scatter(1, to_numpy(opt_params[k]), color='b')
+            if len(opt_params[k]) != len(features):
+                ax.scatter(np.arange(to_numpy(opt_params[k]).shape[0]), to_numpy(opt_params[k]), color='b')
             else:
                 ax.set_xticklabels(features)
                 plt.scatter(features, to_numpy(opt_params[k]), color='b')
