@@ -27,8 +27,8 @@ np.random.seed(7)
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 #dtype = torch.float32
 dtype = torch.double
-#if torch.cuda.is_available():
-matplotlib.use('Agg')
+if torch.cuda.is_available():
+    matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 
 import torch.nn as nn
@@ -36,48 +36,11 @@ import torch.nn as nn
 
 class LearningDynamicsModel(object):
     def __init__(self,
-                 model_params,
-                 model_params_grad,
                  dim):
-        self.model_params = model_params
-        self.model_params_grad = model_params_grad
         self.dim = dim
-        # initialize parameters
-        init_prior = self.model_params['init_prior']
-        transition_log_scale = self.model_params['transition_log_scale']
-        log_gamma = self.model_params['log_gamma']
-        beta = self.model_params['beta']
-        log_alpha = self.model_params['log_alpha']
-
-
-
-        self.init_latent_loc = torch.tensor([init_prior[0]], 
-            requires_grad=self.model_params_grad['init_prior'], dtype=dtype, device=device)
-        self.init_latent_log_scale = torch.tensor([init_prior[1]], 
-            requires_grad = self.model_params_grad['init_prior'], dtype=dtype, device=device)
-        self.transition_log_scale = torch.tensor([transition_log_scale], 
-            requires_grad=self.model_params_grad['transition_log_scale'], dtype=dtype, device=device)
-        self.log_alpha = torch.tensor(log_alpha,
-            requires_grad=self.model_params_grad['log_alpha'], dtype=dtype, device=device)
-        self.beta = torch.tensor([beta],
-            requires_grad=self.model_params_grad['beta'], dtype=dtype, device=device)
-        self.log_gamma = torch.tensor(log_gamma,
-            requires_grad=self.model_params_grad['log_gamma'], dtype=dtype, device=device)
-    
-        self.params = {}
-        self.params['init_prior'] = (self.init_latent_loc, self.init_latent_log_scale)
-        self.params['transition_log_scale'] = self.transition_log_scale
-        self.params['log_alpha'] = self.log_alpha
-        self.params['beta'] = self.beta
-        self.params['log_gamma'] = self.log_gamma
-
-        self.sparsity_dims = torch.ones(self.dim, dtype=dtype, device=device)
-        #self.sparsity_dims[4] = 1
-        #self.sparsity_dims[1:3] = 0
-
         self.sigmoid = nn.Sigmoid()
 
-    def sample(self, T, num_obs_samples=10, dim=3, x=None):
+    def sample(self, T, model_params, num_obs_samples=10, dim=3, x=None):
         '''
             sample latent variables and observations
         '''
@@ -87,15 +50,15 @@ class LearningDynamicsModel(object):
             x = torch.randn(T, num_obs_samples, dim-1, dtype=dtype, device=device)
             x = torch.cat([intercept, x], dim=2)
         
-        z = [self.sample_init_prior()]
-        z[0][0][1] = torch.tensor(-1., dtype=dtype, device=device)
-        z[0][0][2] = torch.tensor(1., dtype=dtype, device=device)
+        z = [self.sample_init_prior(model_params)]
+        # z[0][0][1] = torch.tensor(-1., dtype=dtype, device=device)
+        # z[0][0][2] = torch.tensor(1., dtype=dtype, device=device)
         # set second value to -1.
         # set 3rd value to +1
         y = [self.sample_likelihood(x[0], z[0], num_obs_samples)]
         for i in range(1, T):
             # sample and append a new z
-            z.append(self.sample_prior(z[i-1], y[-1], x[-1]))
+            z.append(self.sample_prior(model_params, z[i-1], y[-1], x[-1]))
             # sample an observation
             y.append(self.sample_likelihood(x[i], z[i], num_obs_samples))
 
@@ -103,7 +66,7 @@ class LearningDynamicsModel(object):
         z = torch.cat(z)
         return y, x, z
 
-    def sample_prior(self, z_prev, y_prev=None, x_prev=None):
+    def sample_prior(self, model_params, z_prev, y_prev=None, x_prev=None):
         '''sample from p(z_t | z_t-1, y_t-1, x_t-1)
         simple AR-1 prior
 
@@ -118,19 +81,19 @@ class LearningDynamicsModel(object):
 
         # grad_loss = -grad_rat_obj + torch.exp(self.log_gamma) * z_prev 
         # grad_loss = -grad_rat_obj + torch.exp(self.log_gamma) * (.5 * z_prev + .5 * torch.sign(z_prev))
-        regularization_comp = torch.exp(self.log_gamma) * (self.sigmoid(self.beta) * z_prev + \
-            (1.0 - self.sigmoid(self.beta))* torch.sign(z_prev))
+        regularization_comp = torch.exp(model_params['log_gamma']) * (self.sigmoid(model_params['beta']) * z_prev + \
+            (1.0 - self.sigmoid(model_params['beta']))* torch.sign(z_prev))
 
-        grad_loss = -grad_rat_obj + self.sparsity_dims * regularization_comp
+        grad_loss = -grad_rat_obj + regularization_comp
 
-        mean = z_prev - torch.exp(self.log_alpha) * grad_loss
-        scale = torch.exp(self.transition_log_scale)
+        mean = z_prev - torch.exp(model_params['log_alpha']) * grad_loss
+        scale = torch.exp(model_params['transition_log_scale'])
         prior = Normal(mean, scale)
         return prior.sample()
     
-    def sample_init_prior(self):
-        prior = Normal(self.init_latent_loc, torch.exp(self.init_latent_log_scale))
-        return prior.sample()
+    def sample_init_prior(self, model_params):
+        prior = Normal(model_params['init_latent_loc'], torch.exp(model_params['init_latent_log_scale']))
+        return prior.sample()[None]
     
     def sample_likelihood(self, x_t, z_t, num_obs_samples):
         ''' z_t is 1 x D
@@ -143,10 +106,10 @@ class LearningDynamicsModel(object):
         obs = Bernoulli(self.sigmoid(logits))
         return obs.sample()
 
-    def log_init_prior(self, z):
+    def log_init_prior(self, model_params, z):
         '''evaluate log pdf of z0 under the init prior
         '''
-        prior = Normal(self.init_latent_loc, torch.exp(self.init_latent_log_scale)) 
+        prior = Normal(model_params['init_latent_loc'], torch.exp(model_params['init_latent_log_scale'])) 
         return torch.sum(prior.log_prob(z))
 
     def log_init_prior_batch(self, z):
@@ -154,47 +117,28 @@ class LearningDynamicsModel(object):
         z0 is particles x dimension
         return log probs for each particle
         '''
-        prior = Normal(self.init_latent_loc, torch.exp(self.init_latent_log_scale)) 
+        prior = Normal(model_params['init_latent_loc'], torch.exp(model_params['init_latent_log_scale'])) 
         return torch.sum(prior.log_prob(z), dim=-1)
 ## vectorized functions ##
-    def log_joint(self, y, x, z, scale_loc=None):
+    def log_joint(self, model_params, y, x, z, scale_loc=None):
         '''
         input: x (observations T x D)
         input: latent_mean
         return logpdf under the model parameters
         '''
-        if scale_loc is not None:
-            self.transition_log_scale = scale_loc
         T = y.size(0)
         logprob = 0
 
-        logprob += self.log_init_prior(z[0][None])
+        logprob += self.log_init_prior(model_params, z[0][None])
         #print 'init prior: ', self.log_init_prior(z[0][None]).item()
-        logprob += self.log_prior_vec(z, y, x)
+        logprob += self.log_prior_vec(model_params, z, y, x)
         #print 'prior: ', self.log_prior_vec(z, y, x).item()
         logprob += self.log_likelihood_vec(y, x, z)
         #print 'lh: ', self.log_likelihood_vec(y, x, z).item()
         return logprob
     
-    def log_joint_batch(self, y, x, z):
-        ''' vectorize over particles and time.
-        input: x (observations T x D)
-        input: latent_mean
-        return logpdf under the model parameters
-        '''
-        T = y.size(0)
-        z = z.transpose(1,0)
-        # vector of length num particles
-        logprob = self.log_init_prior_batch(z[0])
-        z = z.transpose(1,0)
-        # add elementwise
-        logprob += self.log_prior_batch_compl(z, y, x)
-        logprob += self.log_likelihood_compl_batch(y, x, z)
-        return logprob
-
     def return_train_ind(self, y):
         return y[:,0] != -1
-
 
     def log_likelihood_vec(self, y, x, z):
         '''
@@ -211,16 +155,7 @@ class LearningDynamicsModel(object):
         obs = Bernoulli(logits=logits_train)
         return torch.sum(obs.log_prob(y[train_inds]))
 
-    def compute_momentum_vector(self, grad):
-        mtm = [] #torch.zeros_like(grad, device=device)
-        mtm.append(torch.zeros(grad.shape[1], dtype=dtype, device=device))
-        for i in range(1, grad.shape[0]):
-            mtm.append(grad[i-1] + mtm[i-1] * .6)
-     
-        return torch.stack(mtm)
-
-
-    def log_prior_vec(self, z, y, x, momentum=False):
+    def log_prior_vec(self, model_params, z, y, x):
         '''
             input: z_1:t
             parameterize p(z_t | z_t-1, theta)
@@ -229,71 +164,28 @@ class LearningDynamicsModel(object):
         z_curr = z[1:]
 
         grad_rat_obj = self.grad_rat_obj_score_vec(y, x, z)[0:-1]
-
         # grad_loss = -torch.exp(self.log_alpha) * grad_rat_obj + torch.exp(self.log_gamma) * z_prev
         # # properly vectorized
         # mean = z_prev - grad_loss
 
         # grad_loss = -grad_rat_obj + torch.exp(self.log_gamma) * z_prev
         #grad_loss = -grad_rat_obj + torch.exp(self.log_gamma) * (.5 * z_prev + .5 * torch.sign(z_prev))
-        regularization_comp = torch.exp(self.log_gamma) * (self.sigmoid(self.beta) * z_prev + \
-            (1.0 - self.sigmoid(self.beta))* torch.sign(z_prev))
+        regularization_comp = torch.exp(model_params['log_gamma']) * (self.sigmoid(model_params['beta']) * z_prev + \
+            (1.0 - self.sigmoid(model_params['beta']))* torch.sign(z_prev))
 
-        grad_loss = -grad_rat_obj + self.sparsity_dims * regularization_comp
+        grad_loss = -grad_rat_obj + regularization_comp
         #grad_loss = -torch.exp(self.log_alpha) * grad_rat_obj + self.sparsity_dims * regularization_comp
 
-        if momentum:
-            mtm = self.compute_momentum_vector(grad_loss)
-            mean = z_prev - torch.exp(self.log_alpha) * mtm
-        else:
-            # gradient descent
-            mean = z_prev - torch.exp(self.log_alpha) * grad_loss
-            #mean = z_prev - grad_loss
+        mean = z_prev - ((torch.exp(model_params['log_alpha'])[0] * grad_loss * self.rat_reward_vec(y, x)[0:-1]) + \
+            (torch.exp(model_params['log_alpha'])[1] * grad_loss * (1.0 - self.rat_reward_vec(y, x)[0:-1])))
 
-        prior_scale = Normal(-3.5, .1)
-        scale = torch.exp(self.transition_log_scale)
+        #mean = z_prev - (torch.exp(model_params['log_alpha']) * grad_loss * self.rat_reward_vec(y, x)[0:-1])
+        #mean = z_prev - torch.exp(model_params['log_alpha']) * grad_loss
+
+        prior_scale = Normal(-3., .01)
+        scale = torch.exp(model_params['transition_log_scale'])
         prior = Normal(mean, scale)
-        return torch.sum(prior.log_prob(z_curr)) \
-            + torch.sum(prior_scale.log_prob(self.transition_log_scale)) #, -grad_rat_obj, regularization_comp
-
-    def log_prior_relative_contrib(self, z, y, x):
-        '''
-            input: z_1:t
-            parameterize p(z_t | z_t-1, theta)
-        '''
-        z_prev = z[0:-1]
-        z_curr = z[1:]
-
-        grad_rat_obj = self.grad_rat_obj_score_vec(y, x, z)[0:-1]
-
-        regularization_comp = torch.exp(self.log_gamma) * (self.sigmoid(self.beta) * z_prev + \
-            (1.0 - self.sigmoid(self.beta))* torch.sign(z_prev))
-
-        return -grad_rat_obj, regularization_comp
-
-    def log_likelihood_test(self, y_train, y_test, test_inds, x, z):
-        '''
-        make sure we are taking the log of averages not average of logs
-        e.g. for posterior predictive its the expectation of hte likelihood under posterior
-        not expectation of log likelihood under posterior
-        '''
-        logits = torch.sum(x * z[:, None, :], dim=2)
-        train_inds = self.return_train_ind(y_train)
-        
-        logits_train = logits[train_inds]
-        obs = Bernoulli(logits=logits_train)
-        train_log_ll = torch.sum(obs.log_prob(y_train[train_inds]))
-        #train_likelihood = torch.exp(obs.log_prob(y_train[train_inds]))
-        #train_p_y_1_given_x = torch.sigmoid(logits_train)
-        
-        logits_test = logits[test_inds]
-        obs = Bernoulli(logits=logits_test)
-        test_log_ll = torch.sum(obs.log_prob(y_test))
-        #test_likelihood = torch.exp(obs.log_prob(y_test))
-        #test_p_y_1_given_x = torch.sigmoid(logits_test)
-        return test_log_ll
-        #return test_likelihood, train_p_y_1_given_x, test_p_y_1_given_x
-        #return train_log_ll, test_log_ll, train_probs, test_probs
+        return torch.sum(prior.log_prob(z_curr)) + torch.sum(prior_scale.log_prob(model_params['transition_log_scale']))
 
     def log_likelihood(self, y, x, z):
         logits = torch.sum(x * z[:, None, :], dim=2)
@@ -508,6 +400,27 @@ class LearningDynamicsModel(object):
         # grad_log_policy_avg = torch.mean(grad_log_policy, dim=0)[None] # 1 x dimension
         # assert grad_log_policy_avg.size(-1) == z.size(-1)
         # return grad_log_policy_avg
+
+
+
+    def log_likelihood_test(self, y_train, y_test, test_inds, x, z):
+        '''
+        make sure we are taking the log of averages not average of logs
+        e.g. for posterior predictive its the expectation of hte likelihood under posterior
+        not expectation of log likelihood under posterior
+        '''
+        logits = torch.sum(x * z[:, None, :], dim=2)
+        train_inds = self.return_train_ind(y_train)
+        
+        logits_train = logits[train_inds]
+        obs = Bernoulli(logits=logits_train)
+        train_log_ll = torch.sum(obs.log_prob(y_train[train_inds]))
+        
+        logits_test = logits[test_inds]
+        obs = Bernoulli(logits=logits_test)
+        test_log_ll = torch.sum(obs.log_prob(y_test))
+        return test_log_ll
+
 
 def print_memory():
     print("memory usage: ", (process.memory_info().rss)/(1e9))

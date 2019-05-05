@@ -71,10 +71,17 @@ def read_and_process(num_obs, f, savedir):
 	plt.savefig(savedir+'/rw_complete.png')
 
 	ind = np.where(rw_avg >= .75)[0][0] + 500
-	x = x[0:ind]
-	y = y[0:ind]
-	rw = rw[0:ind]
-	data = data[0:ind]
+	proficient = True
+	if proficient:
+		x = x[ind:]
+		y = y[ind:]
+		rw = rw[ind:]
+		data = data[ind:]
+	else:
+		x = x[0:ind]
+		y = y[0:ind]
+		rw = rw[0:ind]
+		data = data[0:ind]
 
 	rw_avg = np.convolve(rw, np.ones(500))/ 500.0
 	rw_avg = rw_avg[500:-500]
@@ -201,11 +208,12 @@ def train_test_split(y, x, cat, percent_test=.2):
 		y_train = y
 		y_train[test_inds] = -1
 	elif cat == 'session':
-		window_size = 1000
+		window_size = 250
 		T = y.shape[0]
 		num_obs = y.shape[1]
 		dim = x.shape[2]
-		start_ind = int(.2* T)
+		start_ind = 500
+		#start_ind = int(.2* T)
 		test_inds = np.arange(start_ind, start_ind+window_size)
 		inds = np.arange(T)
 		#test_inds = np.random.choice(a=inds, size=int(percent_random_inds*T), replace=False)

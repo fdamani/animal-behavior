@@ -1,3 +1,19 @@
+5/5
+to do
+- get code working on server
+- bootstrap estimates of reward-dependent learning rate across a population of rats
+- cross-validation results
+	- across a range of models for held out session, randomly held out trials.
+- held out rat.
+- results comparing learner vs expert
+
+
+- figures
+	- graphical model
+
+
+
+
 5/2
 
 - add prior on scale
