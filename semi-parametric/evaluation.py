@@ -12,7 +12,7 @@ import torch.nn.functional as F
 from torch.autograd import Variable, grad
 from torch.nn import Linear, Module, MSELoss
 from torch.optim import SGD, Adam
-from torch.distributions import Normal, Bernoulli, MultivariateNormal
+from torch.distributions import Normal, Bernoulli, MultivariateNormal, Categorical
 from torch.distributions import constraints, transform_to
 import psutil
 import learning_dynamics
@@ -338,4 +338,103 @@ class HeldOutRat(object):
             log_lhs.append(self.model.log_likelihood(y, x, z))
         marginal_lh = -torch.log(torch.tensor(float(num_mc_samples), dtype=dtype, device=device)) + \
             torch.logsumexp(torch.stack(log_lhs), dim=0)
+        embed()
         return marginal_lh
+
+
+    def compute_expected_trajectory(weights, particles):
+        return 1
+
+
+    def eval_particle_filter(self, model_params, T, num_mc_samples=100, switching=False):
+        '''
+            sample from prior given model parameters
+            evaluate test likelihood.
+            this doesn't work correctly for recurrent model where dynamics depend on previous choice.
+        '''
+        y, x = self.data[0], self.data[1]
+        dim = self.model.dim
+        log_lhs = []
+        log_weights = []
+        particles = []
+        for i in range(num_mc_samples):
+            z_i0 = self.model.sample_init_prior(model_params)
+            particles.append(z_i0)
+            log_weights.append(self.model.log_likelihood(y[0], x[0], z_i0))
+        log_weights = self.normalize_log_weights(torch.stack(log_weights))
+        sampled_indices = self.multinomial_resampling(log_weights, num_mc_samples)
+        particles = torch.stack(particles)
+        particles = particles[sampled_indices]
+        unnorm_log_weights = []
+        for t in range(1,T):
+            particles_t = []
+            log_weights = []
+            for i in range(num_mc_samples):
+                z_it = self.model.sample_prior(model_params, particles[i, t-1][None], y[t-1], x[t-1], switching=switching)
+                concat_particle_i = torch.cat([particles[i], z_it], dim=0)
+                particles_t.append(concat_particle_i)
+                log_weights.append(self.model.log_likelihood(y[t], x[t], z_it))
+            if t == T-1:
+                unnorm_log_weights = torch.stack(log_weights)
+            log_weights = self.normalize_log_weights(torch.stack(log_weights))
+            sampled_indices = self.multinomial_resampling(log_weights, num_mc_samples)
+            del particles
+            particles = torch.stack(particles_t)
+            particles = particles[sampled_indices]
+            del particles_t
+            print t
+        expected_trajectory = torch.sum(torch.exp(log_weights)[:,None, None] * particles, dim=0)
+        plt.plot(to_numpy(expected_trajectory))
+        plt.show()
+
+        log_ll = []
+        for i in range(num_mc_samples):
+            log_ll.append(self.model.log_likelihood(y, x, particles[i]))
+        log_ll = torch.stack(log_ll)
+
+        marginal_lh = math.log(1.0) - math.log(num_mc_samples) + torch.logsumexp(log_ll, dim=0)
+
+        return marginal_lh
+
+    def normalize_log_weights(self, log_weights):
+        '''
+            input: N particle log_weights
+            return normalized exponentiated weights
+        '''
+        logsoftmax = F.log_softmax
+        log_norm_weights = logsoftmax(log_weights, dim=0)
+        return log_norm_weights
+    
+    def reset_weights(self):
+        return torch.ones(self.num_particles, device=device)
+        #self.weights = torch.ones(self.num_particles, device=device)
+
+    def multinomial_resampling(self, wx, num_particles):
+        '''
+            wx is logits
+
+            given logits or normalized weights
+            sample from multinomial/categorical
+            ***make sure its resampling with replacement.
+
+            *note we are sampling full particle trajectories
+            x_1:t given weights at time point t.
+        
+            ****ancestor sampling not reparameterizable. 
+            ****check if rsample() gives score function gradients
+            ****pass in argument grad = bool. to compare with and w/o score
+                func estimator.
+
+        '''
+        # categorical over normalized weight vector for N particles
+        # p is on simplex
+        sampler = Categorical(logits=wx)
+        # sample indices over particles
+        ancestor_samples = sampler.sample(torch.Size((num_particles,)))
+        return ancestor_samples
+
+    def new_particles_from_ancestors(self, ancestors):
+        # return self.particles_list[-1][:, ancestors]
+        
+        return self.particles_t[:, ancestors]
+

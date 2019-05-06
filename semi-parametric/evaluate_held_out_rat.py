@@ -36,10 +36,11 @@ import utils
 from utils import sigmoid
 #dtype = torch.cuda.float if torch.cuda.is_available() else torch.float
 dtype = torch.double
-output_file = '/tigress/fdamani/neuro_output/5.5/test2'
-
+#output_file = '/tigress/fdamani/neuro_output/5.5/test2'
+output_file = '../output'
 # lets compare a switching alpha model to a single alpha
-f = '/tigress/fdamani/neuro_data/data/raw/allrats_withmissing_limitedtrials/csv/'
+f = '../data/'
+#f = '/tigress/fdamani/neuro_data/data/raw/allrats_withmissing_limitedtrials/csv/'
 rat = 'W074.csv'
 f += rat
 rat = f.split('/')[-1].split('.csv')[0]
@@ -50,6 +51,7 @@ os.makedirs(output_file)
 x, y, rw = read_and_process(num_obs_samples, f, savedir=output_file)
 
 T = 1000
+num_particles = 500
 x = x[0:T]
 y = y[0:T]
 
@@ -60,8 +62,51 @@ dim = x.shape[-1]
 md = LearningDynamicsModel(dim)
 ev = HeldOutRat([y, x], md)
 
+
+model_params_file = 'single_alpha_opt_params.pth'
+if torch.cuda.is_available():
+	model_params = torch.load(model_params_file)
+else:
+	model_params = torch.load(model_params_file, map_location='cpu')
+
+single_alpha = ev.eval_particle_filter(model_params, T, num_particles)
+print 'single alpha marginal lh: ', single_alpha
+##########################
+
+model_params_file = 'switching_alpha_opt_params.pth'
+if torch.cuda.is_available():
+	model_params = torch.load(model_params_file)
+else:
+	model_params = torch.load(model_params_file, map_location='cpu')
+
+switching_alpha = ev.eval_particle_filter(model_params, T, num_particles, switching=True)
+print 'switching_alpha marginal lh: ', switching_alpha
+##########################
+
+
+model_params_file = 'multiple_gamma_single_alpha_opt_params.pth'
+if torch.cuda.is_available():
+	model_params = torch.load(model_params_file)
+else:
+	model_params = torch.load(model_params_file, map_location='cpu')
+
+mult_gamma = ev.eval_particle_filter(model_params, T, num_particles)
+print 'mult gamma marginal lh: ', mult_gamma
+#########################
+embed()
+
+
+
+
+mult_gamma_single_alpha_marginal_lh = ev.eval(model_params, T, 100, switching=False)
+
+print 'mult gamma: ', single_marginal_lh
+embed()
+
+
+
 model_params = torch.load('/tigress/fdamani/neuro_output/block_residual_bootstrap/multiple_gamma_single_alpha/W065/model_structs/opt_params.pth')
-mult_gamma_single_alpha_marginal_lh = ev.eval(model_params, T, 500, switching=False)
+mult_gamma_single_alpha_marginal_lh = ev.eval(model_params, T, 50, switching=False)
 print 'mult gamma: ', single_marginal_lh
 embed()
 
