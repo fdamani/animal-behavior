@@ -1,3 +1,11 @@
+- just reran switching alpha proficient
+- single alpha proficient 
+
+===
+- lets rerun switching alpha no proficient
+- and single alpha no proficient.
+
+
 5/6
 scripts running:
 - switching alpha proficient.

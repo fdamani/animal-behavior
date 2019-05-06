@@ -72,10 +72,10 @@ def read_and_process(num_obs, f, savedir, proficient=False):
 
 	ind = np.where(rw_avg >= .75)[0][0] + 500
 	if proficient:
-		x = x[ind:]
-		y = y[ind:]
-		rw = rw[ind:]
-		data = data[ind:]
+		x = x[-5000:]
+		y = y[-5000:]
+		rw = rw[-5000:]
+		data = data[-5000:]
 	else:
 		x = x[0:ind]
 		y = y[0:ind]
@@ -207,7 +207,7 @@ def train_test_split(y, x, cat, percent_test=.2):
 		y_train = y
 		y_train[test_inds] = -1
 	elif cat == 'session':
-		window_size = 150
+		window_size = 250
 		T = y.shape[0]
 		num_obs = y.shape[1]
 		dim = x.shape[2]

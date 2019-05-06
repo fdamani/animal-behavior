@@ -42,7 +42,7 @@ dtype = torch.double
 first_half = True
 server = True
 if server:
-    output_file = '/tigress/fdamani/neuro_output/5.5/single_alpha_proficient'
+    output_file = '/tigress/fdamani/neuro_output/5.5/multiple_gamma_single_alpha_taketwo'
 else:
     output_file = '../output/'
     # if first_half:
@@ -214,7 +214,7 @@ if __name__ == '__main__':
         os.makedirs(output_file+'/plots')
         savedir = output_file
 
-        x, y, rw = read_and_process(num_obs_samples, f, savedir=savedir, proficient=True)
+        x, y, rw = read_and_process(num_obs_samples, f, savedir=savedir, proficient=False)
         # x = x[0:500]
         # y = y[0:500]
         # rw = rw[0:500]
@@ -254,13 +254,13 @@ if __name__ == '__main__':
     model_params_grad = {'init_latent_loc': False,
                     'init_latent_log_scale': False,
                     'transition_log_scale': True,
-                    'log_gamma': False,
+                    'log_gamma': True,
                     'beta': False,
                     'log_alpha': True}
     model_params = {'init_latent_loc': torch.tensor([0.0]*dim, dtype=dtype,  device=device, requires_grad=model_params_grad['init_latent_loc']),
                     'init_latent_log_scale': torch.tensor([math.log(1.0)]*dim, dtype=dtype, device=device, requires_grad=model_params_grad['init_latent_log_scale']),
                     'transition_log_scale': torch.tensor([math.log(.05)], dtype=dtype, device=device, requires_grad=model_params_grad['transition_log_scale']),
-                    'log_gamma': torch.tensor([math.log(.000005)], dtype=dtype, device=device, requires_grad=model_params_grad['log_gamma']),
+                    'log_gamma': torch.tensor([math.log(.05)]*dim, dtype=dtype, device=device, requires_grad=model_params_grad['log_gamma']),
                     'beta': torch.tensor([100.], dtype=dtype, device=device, requires_grad=model_params_grad['beta']),
                     'log_alpha': torch.tensor([math.log(.05)], dtype=dtype, device=device, requires_grad=model_params_grad['log_alpha'])}
     # [math.log(.05)]*2
@@ -284,7 +284,7 @@ if __name__ == '__main__':
 
     final_loss = -inference.vi.forward_multiple_mcs(model_params, inference.train_data, inference.var_params, 50, num_samples=100) #/ float(inference.num_train)
     
-    k = 1
+    k = float(dim+1)
     bic = (2 * final_loss.item() + k * np.log(T * num_obs_samples)) / float(T * num_obs_samples)
 
     np.savetxt(output_file+'/training_bic.txt', np.array([bic]))

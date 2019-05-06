@@ -206,7 +206,7 @@ class Inference(object):
 
     def run(self):
         self.optimizer = torch.optim.SGD(self.opt_params.values(), momentum=0.99, lr=1e-6) # .99, 1e-6
-        return self.optimize(120000, False, 1000)
+        return self.optimize(300000, False, 1000)
 
     def optimize(self, iters, lbfgs, print_every):
         y, x = self.train_data[0], self.train_data[1]

@@ -29,14 +29,14 @@ torch.manual_seed(10)
 np.random.seed(7)
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 if torch.cuda.is_available():
-    matplotlib.use('Agg')
+	matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import datetime
 import utils
 from utils import sigmoid
 #dtype = torch.cuda.float if torch.cuda.is_available() else torch.float
 dtype = torch.float32
-input_file = '/tigress/fdamani/neuro_output/block_residual_bootstrap/multiple_gamma_multiple_alpha/'
+input_file = '/tigress/fdamani/neuro_output/5.5/switching_alpha/'
 
 import os
 boots = []
@@ -60,17 +60,16 @@ fix, ax = plt.subplots()
 if vble == 'log_gamma':
 	ax.boxplot(boots.squeeze(), showfliers=False)
 else:
-	ax.boxplot(np.exp(boots.squeeze()), showfliers=False)
+	ax.boxplot(boots.squeeze(), showfliers=False)
 ax.set_axisbelow(True)
 ax.set_xlabel('Features')
 if vble == 'log_gamma':
 	ax.set_ylabel('Log Gamma')
 elif vble == 'log_alpha':
-	ax.set_ylabel('Alpha')
+	ax.set_ylabel('Log Alpha')
 else:
 	ax.set_ylabel('Scale')
 figure = plt.gcf() # get current figure
 figure.set_size_inches(8, 6)
 plt.savefig(input_file+'/'+vble+'_'+'boxplot_mle_across_rats.png', dpi=200)
-
 
