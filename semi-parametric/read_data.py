@@ -207,12 +207,12 @@ def train_test_split(y, x, cat, percent_test=.2):
 		y_train = y
 		y_train[test_inds] = -1
 	elif cat == 'session':
-		window_size = 10
+		window_size = 150
 		T = y.shape[0]
 		num_obs = y.shape[1]
 		dim = x.shape[2]
-		start_ind = 100
-		#start_ind = int(.2* T)
+		#start_ind = 1500
+		start_ind = int(.2* T)
 		test_inds = np.arange(start_ind, start_ind+window_size)
 		inds = np.arange(T)
 		#test_inds = np.random.choice(a=inds, size=int(percent_random_inds*T), replace=False)

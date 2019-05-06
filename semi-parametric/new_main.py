@@ -40,9 +40,9 @@ dtype = torch.double
 
 #output_file = sys.argv[1]
 first_half = True
-server = False
+server = True
 if server:
-    output_file = '/tigress/fdamani/neuro_output/scale_tests/test'
+    output_file = '/tigress/fdamani/neuro_output/5.5/single_alpha_proficient'
 else:
     output_file = '../output/'
     # if first_half:
@@ -207,17 +207,17 @@ if __name__ == '__main__':
         output_file += '/'+rat
         # output_file += '__obs'+str(num_obs_samples)
 
-        output_file += '_'+str(datetime.datetime.now())
+        #output_file += '_'+str(datetime.datetime.now())
         os.makedirs(output_file)
         os.makedirs(output_file+'/model_structs')
         os.makedirs(output_file+'/data')
         os.makedirs(output_file+'/plots')
         savedir = output_file
 
-        x, y, rw = read_and_process(num_obs_samples, f, savedir=savedir)
-        x = x[0:500]
-        y = y[0:500]
-        rw = rw[0:500]
+        x, y, rw = read_and_process(num_obs_samples, f, savedir=savedir, proficient=True)
+        # x = x[0:500]
+        # y = y[0:500]
+        # rw = rw[0:500]
         rw = torch.tensor(rw, dtype=dtype, device=device)
         z_true = None
         true_model_params=None
@@ -254,16 +254,16 @@ if __name__ == '__main__':
     model_params_grad = {'init_latent_loc': False,
                     'init_latent_log_scale': False,
                     'transition_log_scale': True,
-                    'log_gamma': True,
+                    'log_gamma': False,
                     'beta': False,
                     'log_alpha': True}
     model_params = {'init_latent_loc': torch.tensor([0.0]*dim, dtype=dtype,  device=device, requires_grad=model_params_grad['init_latent_loc']),
                     'init_latent_log_scale': torch.tensor([math.log(1.0)]*dim, dtype=dtype, device=device, requires_grad=model_params_grad['init_latent_log_scale']),
-                    'transition_log_scale': torch.tensor([math.log(.05)]*dim, dtype=dtype, device=device, requires_grad=model_params_grad['transition_log_scale']),
-                    'log_gamma': torch.tensor([math.log(.005)]*dim, dtype=dtype, device=device, requires_grad=model_params_grad['log_gamma']),
+                    'transition_log_scale': torch.tensor([math.log(.05)], dtype=dtype, device=device, requires_grad=model_params_grad['transition_log_scale']),
+                    'log_gamma': torch.tensor([math.log(.000005)], dtype=dtype, device=device, requires_grad=model_params_grad['log_gamma']),
                     'beta': torch.tensor([100.], dtype=dtype, device=device, requires_grad=model_params_grad['beta']),
-                    'log_alpha': torch.tensor([math.log(.05)]*2, dtype=dtype, device=device, requires_grad=model_params_grad['log_alpha'])}
-
+                    'log_alpha': torch.tensor([math.log(.05)], dtype=dtype, device=device, requires_grad=model_params_grad['log_alpha'])}
+    # [math.log(.05)]*2
     torch.save(model_params_grad, output_file+'/model_structs/model_params_grad.pth')
     torch.save(model_params, output_file+'/model_structs/init_model_params.pth')
 
@@ -281,11 +281,10 @@ if __name__ == '__main__':
                           true_model_params=None) # pass in just for figures
     
     opt_params = inference.run()
-    embed()
 
     final_loss = -inference.vi.forward_multiple_mcs(model_params, inference.train_data, inference.var_params, 50, num_samples=100) #/ float(inference.num_train)
     
-    k = float(2*dim)
+    k = 1
     bic = (2 * final_loss.item() + k * np.log(T * num_obs_samples)) / float(T * num_obs_samples)
 
     np.savetxt(output_file+'/training_bic.txt', np.array([bic]))
@@ -298,12 +297,12 @@ if __name__ == '__main__':
 
     torch.save(opt_params, output_file+'/model_structs/opt_params.pth')
     torch.save(data, output_file+'/data/data.pth')
-
+    sys.exit(0)
 
 
     ################### bootstrap ################################################
     ####### this doesn't work yet.
-    num_datasets = 4
+    num_datasets = 20
     sim_datasets = simulate_datasets(opt_params, model_params_grad, dim, num_obs_samples, num_datasets, data)
     bootstrapped_params = {'init_latent_loc': [],
                             'init_latent_log_scale': [],

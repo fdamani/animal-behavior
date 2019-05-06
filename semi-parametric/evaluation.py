@@ -318,5 +318,24 @@ class Evaluate(object):
     def loss_on_future_trajectory(self, y_future, z_future):
         y_train, x, y_test, test_inds, y_true_future, x_future = self.unpack_data(self.data)
 
-
-   
+class HeldOutRat(object):
+    def __init__(self, data, model):
+        self.data = data
+        self.model = model
+    def eval(self, model_params, T, num_mc_samples=100, switching=False):
+        '''
+            sample from prior given model parameters
+            evaluate test likelihood.
+            this doesn't work correctly for recurrent model where dynamics depend on previous choice.
+        '''
+        y, x = self.data[0], self.data[1]
+        dim = self.model.dim
+        particles = []
+        log_lhs = []
+        for i in range(num_mc_samples):
+            _, _, z = self.model.sample(T, model_params, num_obs_samples=1, dim=dim, switching=switching)
+            particles.append(z)
+            log_lhs.append(self.model.log_likelihood(y, x, z))
+        marginal_lh = -torch.log(torch.tensor(float(num_mc_samples), dtype=dtype, device=device)) + \
+            torch.logsumexp(torch.stack(log_lhs), dim=0)
+        return marginal_lh

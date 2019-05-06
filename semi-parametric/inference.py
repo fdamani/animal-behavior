@@ -174,7 +174,7 @@ class Inference(object):
         # initialize to all ones = smooth.
         z = torch.tensor(torch.rand(self.T, self.dim, dtype=dtype, device=device), requires_grad=True, dtype=dtype, device=device)
         y, x = self.unpack_data(self.data)
-        self.map_iters = 10
+        self.map_iters = 100
         self.opt_params = [z]
         #self.map_optimizer =  torch.optim.Adam(self.opt_params, lr=1e-3)
         self.map_optimizer = torch.optim.LBFGS(self.opt_params)
@@ -205,8 +205,8 @@ class Inference(object):
         return self.opt_params[0].clone().detach()
 
     def run(self):
-        self.optimizer = torch.optim.SGD(self.opt_params.values(), momentum=0.99, lr=1e-6)
-        return self.optimize(50, False, 1000)
+        self.optimizer = torch.optim.SGD(self.opt_params.values(), momentum=0.99, lr=1e-6) # .99, 1e-6
+        return self.optimize(120000, False, 1000)
 
     def optimize(self, iters, lbfgs, print_every):
         y, x = self.train_data[0], self.train_data[1]

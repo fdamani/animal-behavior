@@ -40,7 +40,7 @@ class LearningDynamicsModel(object):
         self.dim = dim
         self.sigmoid = nn.Sigmoid()
 
-    def sample(self, T, model_params, num_obs_samples=10, dim=3, x=None):
+    def sample(self, T, model_params, num_obs_samples=10, dim=3, x=None, switching=False):
         '''
             sample latent variables and observations
         '''
@@ -58,7 +58,7 @@ class LearningDynamicsModel(object):
         y = [self.sample_likelihood(x[0], z[0], num_obs_samples)]
         for i in range(1, T):
             # sample and append a new z
-            z.append(self.sample_prior(model_params, z[i-1], y[-1], x[-1]))
+            z.append(self.sample_prior(model_params, z[i-1], y[-1], x[-1], switching))
             # sample an observation
             y.append(self.sample_likelihood(x[i], z[i], num_obs_samples))
 
@@ -66,7 +66,7 @@ class LearningDynamicsModel(object):
         z = torch.cat(z)
         return y, x, z
 
-    def sample_prior(self, model_params, z_prev, y_prev=None, x_prev=None):
+    def sample_prior(self, model_params, z_prev, y_prev=None, x_prev=None, switching=False):
         '''sample from p(z_t | z_t-1, y_t-1, x_t-1)
         simple AR-1 prior
 
@@ -86,7 +86,12 @@ class LearningDynamicsModel(object):
 
         grad_loss = -grad_rat_obj + regularization_comp
 
-        mean = z_prev - torch.exp(model_params['log_alpha']) * grad_loss
+        if switching:
+            prev_rw = self.rat_reward(y_prev, x_prev)
+            mean = z_prev - ((torch.exp(model_params['log_alpha'])[0] * grad_loss * prev_rw) + \
+                (torch.exp(model_params['log_alpha'])[1] * grad_loss * (1.0 - prev_rw)))
+        else:
+            mean = z_prev - torch.exp(model_params['log_alpha']) * grad_loss
         scale = torch.exp(model_params['transition_log_scale'])
         prior = Normal(mean, scale)
         return prior.sample()
@@ -155,7 +160,7 @@ class LearningDynamicsModel(object):
         obs = Bernoulli(logits=logits_train)
         return torch.sum(obs.log_prob(y[train_inds]))
 
-    def log_prior_vec(self, model_params, z, y, x):
+    def log_prior_vec(self, model_params, z, y, x, switching=False):
         '''
             input: z_1:t
             parameterize p(z_t | z_t-1, theta)
@@ -176,11 +181,11 @@ class LearningDynamicsModel(object):
         grad_loss = -grad_rat_obj + regularization_comp
         #grad_loss = -torch.exp(self.log_alpha) * grad_rat_obj + self.sparsity_dims * regularization_comp
 
-        mean = z_prev - ((torch.exp(model_params['log_alpha'])[0] * grad_loss * self.rat_reward_vec(y, x)[0:-1]) + \
-            (torch.exp(model_params['log_alpha'])[1] * grad_loss * (1.0 - self.rat_reward_vec(y, x)[0:-1])))
-
-        #mean = z_prev - (torch.exp(model_params['log_alpha']) * grad_loss * self.rat_reward_vec(y, x)[0:-1])
-        #mean = z_prev - torch.exp(model_params['log_alpha']) * grad_loss
+        if switching:
+            mean = z_prev - ((torch.exp(model_params['log_alpha'])[0] * grad_loss * self.rat_reward_vec(y, x)[0:-1]) + \
+                (torch.exp(model_params['log_alpha'])[1] * grad_loss * (1.0 - self.rat_reward_vec(y, x)[0:-1])))
+        else:
+            mean = z_prev - torch.exp(model_params['log_alpha']) * grad_loss
 
         prior_scale = Normal(-3., .01)
         scale = torch.exp(model_params['transition_log_scale'])

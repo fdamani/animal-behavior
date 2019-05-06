@@ -1,9 +1,58 @@
+5/6
+scripts running:
+- switching alpha proficient.
+- single alpha proficient.
+
+scripts to run:
+- multiple alpha no gamma (make sure to change held out session back to correct numbers)
+
+
+other things to do:
+- held out rat.
+
+
 5/5
 
-- fixed bootstrap code.
-- now lets get this to work on the server with gpus.
-- fine tune sgd so its fast and converges well.
-- run reward-dependent learning results for all rats.
+
+scripts running
+- multiple alpha no gamma => this crashed.
+- multiple gamma single alpha X
+- single alpha no gamma  X
+- switching alpha X
+
+
+scripts to run:
+	we want to answer what is a learner vs an expert?
+		- run single alpha results for post proficiency (dont worry about held out session)
+		- run switching alpha for post proficiency
+	- we want to see if there is interesting structure in these results 
+		- e.g. for single alpha, is the learning rate lower?
+
+
+
+
+
+- fixed bootstrap code. X
+- now lets get this to work on the server with gpus. X
+- fine tune sgd so its fast and converges well. X
+- run reward-dependent learning results for all rats. X
+models to run (no bootstrap) with held out session.
+	- single alpha learning rate no regularization, running now.
+		- after its run, compare single alpha to two. do bic or held out marginal likelihood results look interesting?
+			- create a script that takes in all of these text files and plots values. 
+				- boxplot for each model across rats.
+	- single alpha, single regularization
+	- single alpha, feature-specific regularization.
+
+
+- figure out how to test on new rat. 
+	- write file to do this.
+	- simple naive thing
+		- get model parameters from file then sample from prior 10k times.
+			- look at ev code for logsumexp argument to evaluate likelihood. 
+		- alternatively, use smc.
+- once we figure out how to evaluate on test rat, we need to edit inference code to be able to take in a bunch of datasets.
+	- get bootstrap estimates of these parameters using same procedure as before.
 
 
 
