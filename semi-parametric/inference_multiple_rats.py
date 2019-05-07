@@ -174,7 +174,7 @@ class Inference(object):
         for i in range(len(self.datasets)):
             T = self.datasets[i][0].shape[0]
             z_list.append(torch.tensor(torch.rand(T, self.dim, dtype=dtype, device=device), requires_grad=True, dtype=dtype, device=device))
-        self.map_iters = 10
+        self.map_iters = 60
         self.opt_params = z_list
         #self.map_optimizer =  torch.optim.Adam(self.opt_params, lr=1e-3)
         self.map_optimizer = torch.optim.LBFGS(self.opt_params)
@@ -222,14 +222,12 @@ class Inference(object):
 
     def run(self):
         #self.optimizer = torch.optim.SGD(self.opt_params.values(), momentum=0.99, lr=1e-6) # .99, 1e-6
-        self.optimizer = torch.optim.SGD([self.opt_params['log_alpha']] + \
+        self.optimizer = torch.optim.SGD([self.opt_params['log_alpha']] + [self.opt_params['log_gamma']] + \
                                    self.opt_params['var_mu'] + \
                                    self.opt_params['var_log_scale'], momentum=0.99, lr=1e-6)
-        return self.optimize(100, False, 25)
+        return self.optimize(80000, False, 500)
 
         #return self.optimize(200000, False, 250)
-
-
 
     def optimize(self, iters, lbfgs, print_every):
         print 'optimizing...'

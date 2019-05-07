@@ -39,38 +39,55 @@ dtype = torch.double
 #output_file = '/tigress/fdamani/neuro_output/5.5/test2'
 output_file = '../output'
 # lets compare a switching alpha model to a single alpha
-f = '../data/'
-#f = '/tigress/fdamani/neuro_data/data/raw/allrats_withmissing_limitedtrials/csv/'
-rat = 'W074.csv'
-f += rat
-rat = f.split('/')[-1].split('.csv')[0]
-num_obs_samples=1
-output_file += '/'+rat
-output_file += '_'+str(datetime.datetime.now())
+datafiles = ['W065.csv', 'W066.csv', 'W068.csv', 'W072.csv', 'W073.csv', 'W074.csv', 'W075.csv', 'W078.csv',
+              'W080.csv', 'W082.csv', 'W083.csv', 'W088.csv', 'W089.csv']
+# f = '/tigress/fdamani/neuro_data/data/raw/allrats_withmissing_limitedtrials/csv/'
+# rat = 'W065.csv'
+# f += rat
+# rat = f.split('/')[-1].split('.csv')[0]
+# num_obs_samples=1
+#output_file += '/'+rat
+output_file += '/kfold_switching_alpha_results'
 os.makedirs(output_file)
-x, y, rw = read_and_process(num_obs_samples, f, savedir=output_file)
 
-T = 500
-num_particles = 500
-x = x[0:T]
-y = y[0:T]
+folds = np.arange(1, len(datafiles))
+held_out_marginal_lhs = []
+for fd in folds:
+	rat = datafiles[fd]
+	f = '/tigress/fdamani/neuro_data/data/raw/allrats_withmissing_limitedtrials/csv/'
+	f += rat
+	num_obs_samples=1
+	x, y, rw = read_and_process(num_obs_samples, f, savedir=output_file)
+	T = 500
+	#T = 10
+	#num_particles = 100
+	num_particles = 1000
+	x = x[0:T]
+	y = y[0:T]
 
-x = torch.tensor(x, dtype=dtype, device=device)
-y = torch.tensor(y, dtype=dtype, device=device)
+	x = torch.tensor(x, dtype=dtype, device=device)
+	y = torch.tensor(y, dtype=dtype, device=device)
 
-dim = x.shape[-1]
-md = LearningDynamicsModel(dim)
-ev = HeldOutRat([y, x], md)
+	dim = x.shape[-1]
+	md = LearningDynamicsModel(dim)
+	ev = HeldOutRat([y, x], md)
 
+	model_params_file = '/tigress/fdamani/neuro_output/5.5/switching_alpha_shared_model_kfold_leave_out_'+str(int(fd))+'/model_structs/opt_params.pth'
+	num_obs_samples=1
+	
+	if torch.cuda.is_available():
+		try:
+			model_params = torch.load(model_params_file)
+		except:
+			continue
+	else:
+		model_params = torch.load(model_params_file, map_location='cpu')
 
-model_params_file = '../output/5.5/single_alpha/W073/model_structs/opt_params.pth'
-if torch.cuda.is_available():
-	model_params = torch.load(model_params_file)
-else:
-	model_params = torch.load(model_params_file, map_location='cpu')
-
-single_alpha = ev.eval_particle_filter(model_params, T, num_particles) # -263.3014, -.526
-print 'single alpha marginal lh: ', single_alpha
+	switching_alpha = ev.eval_particle_filter(model_params, T, num_particles, True, output_file, fd) # -263.3014, -.526
+	held_out_marginal_lhs.append(switching_alpha.item())
+	print 'single alpha marginal lh: ', switching_alpha.item(), fd
+	np.savetxt(output_file+'/held_out_rat_marginal_lh.txt', np.array([held_out_marginal_lhs]))
+sys.exit(0)
 ##########################
 
 model_params_file = '../output/5.5/switching_alpha/W073/model_structs/opt_params.pth'

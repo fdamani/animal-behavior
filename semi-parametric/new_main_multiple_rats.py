@@ -40,9 +40,9 @@ dtype = torch.double
 
 #output_file = sys.argv[1]
 first_half = True
-server = False
+server = True
 if server:
-    output_file = '/tigress/fdamani/neuro_output/5.5/multiple_gamma_single_alpha_taketwo'
+    output_file = '/tigress/fdamani/neuro_output/5.5/multiple_gamma_shared_model'
 else:
     output_file = '../output/'
     # if first_half:
@@ -156,7 +156,7 @@ if __name__ == '__main__':
     leave_out_ind = int(sys.argv[1])
     inds = inds[inds!=leave_out_ind]
     num_obs_samples = 1
-    output_file += 'shared_model_kfold_leave_out_'+str(leave_out_ind)
+    output_file += '_kfold_leave_out_'+str(leave_out_ind)
     #output_file += '_'+str(datetime.datetime.now())
     os.makedirs(output_file)
     os.makedirs(output_file+'/model_structs')
@@ -222,7 +222,7 @@ if __name__ == '__main__':
     model_params_grad = {'init_latent_loc': False,
                     'init_latent_log_scale': False,
                     'transition_log_scale': False,
-                    'log_gamma': False,
+                    'log_gamma': True,
                     'beta': False,
                     'log_alpha': True}
     model_params = {'init_latent_loc': torch.tensor([0.0]*dim, dtype=dtype,  device=device, requires_grad=model_params_grad['init_latent_loc']),
@@ -249,6 +249,7 @@ if __name__ == '__main__':
                           true_model_params=None) # pass in just for figures
     
     opt_params = inference.run()
+    torch.save(opt_params, output_file+'/model_structs/opt_params.pth')
 
     final_loss = 0
     for d in range(len(inference.datasets)):
@@ -269,11 +270,10 @@ if __name__ == '__main__':
         if v == False:
             opt_params[k] = model_params[k]
 
-    torch.save(opt_params, output_file+'/model_structs/opt_params.pth')
     torch.save(data, output_file+'/data/data.pth')
 
     ################### bootstrap ################################################
-    num_datasets = 3
+    num_datasets = 15
     sim_datasets = simulate_datasets(opt_params, model_params_grad, dim, num_obs_samples, num_datasets, datasets)
     bootstrapped_params = {'init_latent_loc': [],
                             'init_latent_log_scale': [],

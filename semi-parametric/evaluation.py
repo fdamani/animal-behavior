@@ -346,7 +346,7 @@ class HeldOutRat(object):
         return 1
 
 
-    def eval_particle_filter(self, model_params, T, num_mc_samples=100, switching=False):
+    def eval_particle_filter(self, model_params, T, num_mc_samples, switching, output_file, fd):
         '''
             sample from prior given model parameters
             evaluate test likelihood.
@@ -382,10 +382,11 @@ class HeldOutRat(object):
             particles = torch.stack(particles_t)
             particles = particles[sampled_indices]
             del particles_t
-            print t
+            if t % 5 == 0:
+                print t
         expected_trajectory = torch.sum(torch.exp(log_weights)[:,None, None] * particles, dim=0)
         plt.plot(to_numpy(expected_trajectory))
-        plt.show()
+        plt.savefig(output_file+'/'+str(fd)+'.png')
 
         log_ll = []
         for i in range(num_mc_samples):
