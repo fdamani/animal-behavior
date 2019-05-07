@@ -50,7 +50,7 @@ output_file += '_'+str(datetime.datetime.now())
 os.makedirs(output_file)
 x, y, rw = read_and_process(num_obs_samples, f, savedir=output_file)
 
-T = 1000
+T = 500
 num_particles = 500
 x = x[0:T]
 y = y[0:T]
@@ -63,24 +63,25 @@ md = LearningDynamicsModel(dim)
 ev = HeldOutRat([y, x], md)
 
 
-model_params_file = 'single_alpha_opt_params.pth'
+model_params_file = '../output/5.5/single_alpha/W073/model_structs/opt_params.pth'
 if torch.cuda.is_available():
 	model_params = torch.load(model_params_file)
 else:
 	model_params = torch.load(model_params_file, map_location='cpu')
 
-single_alpha = ev.eval_particle_filter(model_params, T, num_particles)
+single_alpha = ev.eval_particle_filter(model_params, T, num_particles) # -263.3014, -.526
 print 'single alpha marginal lh: ', single_alpha
 ##########################
 
-model_params_file = 'switching_alpha_opt_params.pth'
+model_params_file = '../output/5.5/switching_alpha/W073/model_structs/opt_params.pth'
 if torch.cuda.is_available():
 	model_params = torch.load(model_params_file)
 else:
 	model_params = torch.load(model_params_file, map_location='cpu')
 
 switching_alpha = ev.eval_particle_filter(model_params, T, num_particles, switching=True)
-print 'switching_alpha marginal lh: ', switching_alpha
+print 'switching_alpha marginal lh: ', switching_alpha/float(T) # -260.3224,
+embed()
 ##########################
 
 
@@ -91,7 +92,8 @@ else:
 	model_params = torch.load(model_params_file, map_location='cpu')
 
 mult_gamma = ev.eval_particle_filter(model_params, T, num_particles)
-print 'mult gamma marginal lh: ', mult_gamma
+print 'mult gamma marginal lh: ', mult_gamma/float(T)
+
 #########################
 embed()
 

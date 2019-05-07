@@ -1,3 +1,12 @@
+finish heirarchiacl model code.
+- run for reward-dependent learning leave 5 different rats out
+	- make sure we are computing uncertainty estimates by leaving a rat out.
+- fit each of these heirarchial models to a held out rat and compute marginal likelihoods
+- compare to single alpha model.
+- also do regularization model.
+
+
+
 - just reran switching alpha proficient
 - single alpha proficient 
 

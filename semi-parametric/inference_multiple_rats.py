@@ -21,13 +21,18 @@ import evaluation
 from evaluation import Evaluate
 process = psutil.Process(os.getpid())
 
+#from LBFGS import LBFGS, FullBatchLBFGS
+
+
 # set random seed
 torch.manual_seed(7)
 np.random.seed(7)
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-dtype = torch.float32
-#if torch.cuda.is_available():
-matplotlib.use('Agg')
+#dtype = torch.float32
+dtype = torch.double
+
+if torch.cuda.is_available():
+    matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import utils
 from utils import sigmoid
@@ -105,6 +110,7 @@ class Inference(object):
     def __init__(self, 
                  datasets, 
                  model, 
+                 model_params,
                  model_params_grad, 
                  savedir, 
                  num_obs_samples, 
@@ -118,7 +124,7 @@ class Inference(object):
         self.num_datasets = len(self.datasets)
         self.dim = self.datasets[0][1].size(2)
         #self.T = self.data[1].size(0)
-
+        self.model_params = model_params
         # self.train_data = self.data[0:2]
         # self.y_future = self.data[4]
         # self.x_future = self.data[5]
@@ -137,51 +143,38 @@ class Inference(object):
         self.ppc_window = ppc_window
         self.isPPC = False
 
-
-        init = 'map' # 'true'
-        # list of map estimates
         self.init_z = self.map_estimate()
-        if init == 'map':
-            self.var_params = []
-            for i in range(self.num_datasets):
-                T = self.datasets[i][0].shape[0]
-                self.var_params.append(self.vi.init_var_params(T, self.dim, self.init_z[i], grad=True))
-        elif init == 'true':
-            self.var_params = self.vi.init_var_params(self.T, self.dim, z_true[0:-1], grad=True)
-        else:
-            print 'specify valid init option.'
+        self.var_params = []
+        for i in range(self.num_datasets):
+            T = self.datasets[i][0].shape[0]
+            self.var_params.append(self.vi.init_var_params(T, self.dim, self.init_z[i], grad=True))
+
         self.iters = iters
-        #lr = 1e-4
 
         self.opt_params = {'var_mu': [self.var_params[i][0] for i in range(self.num_datasets)], 
                    'var_log_scale': [self.var_params[i][1] for i in range(self.num_datasets)]}
-
-        # find model params with grad signal=True
         for k,v in self.model_params_grad.items():
             if v == True:
-                self.opt_params[k] = self.model.params[k]
-        #self.opt_params = [self.var_params[0], self.var_params[1], self.model.transition_log_scale]
-        #self.optimizer =  torch.optim.SGD(self.opt_params.values(), lr=1e-2, momentum=.9)
-        #self.optimizer =  torch.optim.Adam(self.opt_params.values(), lr=1e-2)
-        #self.optimizer =  torch.optim.LBFGS(self.opt_params.values())
-        #lbfgs = True
+                self.opt_params[k] = self.model_params[k]
+        # self.var_params_model = self.vi.init_var_params_model()
+        # self.opt_params['model_mu'] = self.var_params_model[0]
+        # self.opt_params['model_log_scale'] = self.var_params_model[1]
+
 
         #self.ev = Evaluate(self.data, self.model, savedir='', num_obs_samples=self.num_obs_samples)
-        #self.num_test = self.data[2].shape[0]
-        #self.num_train = self.data[0].shape[0] - self.num_test
+        # self.num_test = self.data[2].shape[0]
+        # self.num_train = self.data[0].shape[0] - self.num_test
     def unpack_data(self, data):
         y = data[0]
         x = data[1]
         return y, x
     def map_estimate(self):
         # initialize to all ones = smooth.
-        #z = torch.tensor(torch.rand(self.T, self.dim, device=device), requires_grad=True, device=device)
         z_list = []
         for i in range(len(self.datasets)):
             T = self.datasets[i][0].shape[0]
-            z_list.append(torch.tensor(torch.rand(T, self.dim, device=device), requires_grad=True, device=device))
-        #y, x = self.unpack_data(self.data)
-        self.map_iters = 50
+            z_list.append(torch.tensor(torch.rand(T, self.dim, dtype=dtype, device=device), requires_grad=True, dtype=dtype, device=device))
+        self.map_iters = 10
         self.opt_params = z_list
         #self.map_optimizer =  torch.optim.Adam(self.opt_params, lr=1e-3)
         self.map_optimizer = torch.optim.LBFGS(self.opt_params)
@@ -192,7 +185,7 @@ class Inference(object):
                 output = 0
                 for d in range(len(self.datasets)):
                     y, x = self.unpack_data(self.datasets[d])
-                    output += -self.model.log_joint(y, x, z_list[d])
+                    output += -self.model.log_joint(self.model_params, y, x, z_list[d])
                 output.backward()
                 return output
             if lbfgs:
@@ -201,9 +194,9 @@ class Inference(object):
                     output = 0
                     for d in range(len(self.datasets)):
                         y, x = self.unpack_data(self.datasets[d])
-                        output += -self.model.log_joint(y, x, z_list[d])
+                        output += -self.model.log_joint(self.model_params, y, x, z_list[d])
             else:
-                output = -self.model.log_joint(y, x, z)
+                output = -self.model.log_joint(self.model_params, y, x, z)
                 self.map_optimizer.zero_grad()
                 output.backward()
                 self.map_optimizer.step()
@@ -216,6 +209,7 @@ class Inference(object):
                     figure = plt.gcf() # get current figure
                     figure.set_size_inches(8, 6)
                     plt.savefig(self.savedir+'/plots/single_rat_map_z_'+str(ind)+'png')
+
                 for dm in range(self.dim):
                     plt.cla()
                     for z in z_list:
@@ -226,38 +220,18 @@ class Inference(object):
 
         return [self.opt_params[i].clone().detach() for i in range(len(self.opt_params))]
 
-    def em(self):
-        # optimize model parameters conditioned on vi
-        # self.var_params[0].requires_grad = False
-        # self.var_params[1].requires_grad = False
-        # self.opt_params = {}
-        # for k,v in self.model_params_grad.items():
-        #     if v == True:
-        #         self.opt_params[k] = self.model.params[k]
-        # self.optimizer = torch.optim.LBFGS(self.opt_params.values())
-        # #self.optimizer = torch.optim.Adam(self.opt_params.values(), lr=1e-2)
-        # self.optimize(15, True, 1)
-        # joint optimization of vi and model params
-        # self.var_params[0].requires_grad = True
-        # self.var_params[1].requires_grad = True
-        #self.var_params = self.vi.init_var_params(self.T, self.dim, self.init_z, grad=True)
-        #self.model.transition_log_scale.requires_grad = True
-        # self.opt_params = {'var_mu': self.var_params[0], 
-        #            'var_log_scale': self.var_params[1]}
-        # for k,v in self.model_params_grad.items():
-        #     if v == True:
-        #         self.opt_params[k] = self.model.params[k]
-        self.optimizer = torch.optim.Adam([self.opt_params['log_alpha']] + \
-                                           self.opt_params['var_mu'] + \
-                                           self.opt_params['var_log_scale'], lr=1e-2)
-        #self.optimizer = torch.optim.Adam(self.opt_params.values(), lr=1e-2)
-        #return self.optimize(5000, True, 1000)
-        return self.optimize(80000, False, 10)
-        #return self.optimize(100000, False, 10000)
+    def run(self):
+        #self.optimizer = torch.optim.SGD(self.opt_params.values(), momentum=0.99, lr=1e-6) # .99, 1e-6
+        self.optimizer = torch.optim.SGD([self.opt_params['log_alpha']] + \
+                                   self.opt_params['var_mu'] + \
+                                   self.opt_params['var_log_scale'], momentum=0.99, lr=1e-6)
+        return self.optimize(100, False, 25)
+
+        #return self.optimize(200000, False, 250)
+
+
 
     def optimize(self, iters, lbfgs, print_every):
-        #y, x = self.train_data[0], self.train_data[1]
-
         print 'optimizing...'
         outputs = []
         clip = 5.
@@ -265,21 +239,18 @@ class Inference(object):
         for k,v in self.model_params_grad.items():
             if v == True:
                 curr_model_params[k] = []
-        #var_clip = 5.
-        #model_param_clip = 500.
-        #lbfgs = lbfgs
+
         self.iters = iters
         for t in range(self.iters):
-            # if t == 10000:
-            #     self.optimizer =  torch.optim.SGD(self.opt_params.values(), lr=1e-2, momentum=.9)
-            # e-step
+
+            #torch.nn.utils.clip_grad_norm(self.opt_params.values(), clip)
             self.optimizer.zero_grad()
             output = 0
             for d in range(len(self.datasets)):
                 y, x = self.datasets[d][0], self.datasets[d][1]
                 num_train = self.datasets[d][0].shape[0] - self.datasets[d][2].shape[0]
-                output += -self.vi.forward((y,x), self.var_params[d], t) / float(num_train)
-            outputs.append(output.item())
+                output += -self.vi.forward(self.model_params, (y,x), self.var_params[d], t) #/ float(self.num_train)
+            outputs.append((output.item()))
             output.backward()
             self.optimizer.step()
 
@@ -289,9 +260,7 @@ class Inference(object):
 
             if t % print_every == 0:
                 # printing
-                print 'iter: ', t, 'loss: %.2f ' % output.item(), 'scale: ',
-                #if 'var_log_scale' in self.opt_params:
-                    #print torch.mean(self.opt_params['var_log_scale'].clone().detach()).item(),
+                print 'iter: ', t, 'loss: %.2f ' % output.item()
                 for k,v in self.model_params_grad.items():
                     if v == True:
                         if k in self.opt_params:
@@ -315,8 +284,6 @@ class Inference(object):
                     plt.cla()
                     if k == 'beta':
                         plt.plot(sigmoid(np.array(v)))
-                        if self.true_model_params:
-                            plt.axhline(y=sigmoid(self.true_model_params[k]), color='r', linestyle='-')
                     else:
                         plt.plot(v)
                         # if self.true_model_params:
@@ -326,22 +293,29 @@ class Inference(object):
                     figure = plt.gcf() # get current figure
                     figure.set_size_inches(8, 6)
                     plt.savefig(self.savedir+'/plots/'+k+'.png')
-
-
                 for d in range(len(self.datasets)):
                     zx = self.var_params[d][0]
-                    #zx = self.var_params[0]
                     zx = to_numpy(zx)
                     zx_scale = np.exp(to_numpy(self.var_params[d][1]))
                     plt.cla()
                     labels = ['Bias', 'X1', 'X2', 'Choice t-1', 'RW Side t-1', 'X1 t-1', 'X2 t-1']
                     for j in range(zx_scale.shape[1]):
-                        plt.plot(zx[:,j], label=labels[j], linewidth=.5)
+                        #plt.plot(zx[:,j], label=labels[j], linewidth=.5)
+                        plt.plot(zx[:,j], label=labels[j], linewidth=1.)
                         # plt.fill_between(np.arange(zx.shape[0]), zx[:,j] - zx_scale[:,j],  zx[:,j] + zx_scale[:,j])
                     figure = plt.gcf() # get current figure
                     figure.set_size_inches(12, 8)
                     # plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
                     plt.savefig(self.savedir+'/plots/single_rat_vi_est_'+str(d)+'.png')
+                    test_inds = self.datasets[d][-4].cpu().numpy()
+                    zx_test = zx[test_inds]
+                    plt.cla()
+                    for j in range(zx_scale.shape[1]):
+                        #plt.plot(zx_test[:,j], label=labels[j], linewidth=.5)
+                        plt.plot(zx_test[:,j], linewidth=1.)
+
+                    plt.savefig(self.savedir+'/plots/single_rat_vi_test_z'+str(d)+'.png')
+
                 for dm in range(self.dim):
                     plt.cla()
                     for d in range(len(self.datasets)):
@@ -353,30 +327,25 @@ class Inference(object):
                     figure.set_size_inches(8, 6) 
                     plt.savefig(self.savedir+'/plots/single_feature_vi_z_'+str(dm)+'.png')
 
-                    # test_inds = self.data[-4].cpu().numpy()
-                    # zx_test = zx[test_inds]
-                    # plt.cla()
-                    # for j in range(zx_scale.shape[1]):
-                    #     plt.plot(zx_test[:,j], label=labels[j], linewidth=.5)
-                    # plt.savefig(self.savedir+'/plots/curr_est_test_z.png')
-
+        # test_marginal = self.ev.valid_loss(self.opt_params)
+        # np.savetxt(self.savedir+'/test_marginal.txt', np.array([test_marginal.item()]))
+        # print 'final test marginal: ', test_marginal.item()
             # detach and clone all params
-        for k in self.opt_params.keys():
-            self.opt_params[k] = self.opt_params[k].clone().detach()
-        
+        # for k in self.opt_params.keys():
+        #     self.opt_params[k] = self.opt_params[k].clone().detach()
 
+        
 
         # access learning and regularization components
-        learning, regularization = self.model.log_prior_relative_contrib(self.var_params[0], y, x)
-        torch.save(learning.clone().detach(), self.savedir+'/model_structs/learning_after_training.pth')
-        torch.save(regularization.clone().detach(), self.savedir+'/model_structs/regularization_after_training.pth')
-        plt.cla()
-        plt.plot(to_numpy(learning.clone().detach()))
-        plt.savefig(self.savedir+'/plots/learning_after_training.png')
-        plt.cla()
-        plt.plot(to_numpy(regularization.clone().detach()))
-        plt.savefig(self.savedir+'/plots/regularization_after_training.png')
-        
+        #learning, regularization = self.model.log_prior_relative_contrib(self.var_params[0], y, x)
+        #torch.save(learning.clone().detach(), self.savedir+'/model_structs/learning_after_training.pth')
+        #torch.save(regularization.clone().detach(), self.savedir+'/model_structs/regularization_after_training.pth')
+        #plt.cla()
+        #plt.plot(to_numpy(learning.clone().detach()))
+        #plt.savefig(self.savedir+'/plots/learning_after_training.png')
+        #plt.cla()
+        #plt.plot(to_numpy(regularization.clone().detach()))
+        #plt.savefig(self.savedir+'/plots/regularization_after_training.png')
         return self.opt_params
 
 class MeanFieldVI(object):
@@ -389,9 +358,15 @@ class MeanFieldVI(object):
         self.num_samples = num_samples
 
     def init_var_params(self, T, dim, init_mean=None, grad=True):
-        mean = torch.tensor(init_mean, device=device, requires_grad=grad)
-        #mean = torch.tensor(5*torch.rand(T, dim, device=device), requires_grad=grad, device=device)
-        log_scale = torch.tensor(-5 * torch.ones(T, dim, device=device), requires_grad=grad, device=device)
+        mean = torch.tensor(init_mean, device=device, dtype=dtype, requires_grad=grad)
+        #mean = torch.tensor(torch.rand(T, dim, device=device), requires_grad=grad, device=device)
+        log_scale = torch.tensor(-5 * torch.ones(T, dim, dtype=dtype, device=device), requires_grad=grad, dtype=dtype, device=device)
+        return (mean, log_scale)
+
+    def init_var_params_model(self, grad=True):
+        mean = torch.tensor([-3.], device=device, dtype=dtype, requires_grad=grad)
+        #mean = torch.tensor(torch.rand(T, dim, device=device), requires_grad=grad, device=device)
+        log_scale = torch.tensor(-5 * torch.ones(1, dtype=dtype, device=device), requires_grad=grad, dtype=dtype, device=device)
         return (mean, log_scale)
 
     def unpack_var_params(self, params):
@@ -402,7 +377,7 @@ class MeanFieldVI(object):
         x = data[1]
         return y, x
 
-    def forward(self, data, var_params, itr, num_samples=1):
+    def forward(self, model_params, data, var_params, itr, num_samples=1):
         '''
             useful for analytic kl  kl = torch.distributions.kl.kl_divergence(z_dist, self.prior).sum(-1)
         '''
@@ -413,11 +388,36 @@ class MeanFieldVI(object):
         #scale_tril = cov.tril()
         #var_dist = MultivariateNormal(loc, scale_tril=scale_tril)
         samples = var_dist.rsample(torch.Size((num_samples,)))
-        data_term = self.model.log_joint(y, x, samples[0])
+        data_term = self.model.log_joint(model_params, y, x, samples[0])
         entropy = torch.sum(var_dist.entropy())
         return (data_term + entropy)
 
-    def forward_multiple_mcs(self, data, var_params, itr, num_samples=1):
+    def forward_with_model_param_post(self, data, var_params, itr, num_samples=1):
+        '''
+            useful for analytic kl  kl = torch.distributions.kl.kl_divergence(z_dist, self.prior).sum(-1)
+        '''
+        y, x = self.unpack_data(data)
+        loc, log_scale, loc_mod, log_scale_mod = var_params['var_mu'], var_params['var_log_scale'], \
+            var_params['model_mu'], var_params['model_log_scale']
+        #loc, log_scale = self.unpack_var_params(var_params)
+        var_dist = Normal(loc, torch.exp(log_scale))
+        var_dist_model = Normal(loc_mod, torch.exp(log_scale_mod))
+        #cov = torch.diag(torch.exp(log_scale))**2
+        #scale_tril = cov.tril()
+        #var_dist = MultivariateNormal(loc, scale_tril=scale_tril)
+        samples = var_dist.rsample(torch.Size((num_samples,)))
+        mod_samples = var_dist_model.rsample(torch.Size((num_samples,)))
+        # data_terms = torch.empty(num_samples, device=device)
+        # for i in range(len(samples)):
+        #     data_terms[i] = self.model.log_joint(y, x, samples[i], mod_samples[i])
+        # data_term = torch.mean(data_terms)
+
+        data_term = self.model.log_joint(y, x, samples[0], mod_samples[0])
+        entropy = torch.sum(var_dist.entropy())
+        entropy_mod = torch.sum(var_dist_model.entropy())
+        return (data_term + entropy + entropy_mod)
+
+    def forward_multiple_mcs(self, model_params, data, var_params, itr, num_samples=5):
         '''
             useful for analytic kl  kl = torch.distributions.kl.kl_divergence(z_dist, self.prior).sum(-1)
         '''
@@ -431,7 +431,7 @@ class MeanFieldVI(object):
         #data_term = self.model.log_joint(y, x, samples[0])
         data_terms = torch.empty(num_samples, device=device)
         for i in range(len(samples)):
-            data_terms[i] = self.model.log_joint(y, x, samples[i])
+            data_terms[i] = self.model.log_joint(model_params, y, x, samples[i])
         data_term = torch.mean(data_terms)
         entropy = torch.sum(var_dist.entropy())
         return (data_term + entropy)
