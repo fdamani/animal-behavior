@@ -38,8 +38,11 @@ from utils import sigmoid
 #dtype = torch.float32
 dtype = torch.double
 
-f = '/tigress/fdamani/neuro_output/5.5/switching_alpha_shared_model_kfold_leave_out_6/model_structs/opt_params.pth'
-model_params = torch.load(f)
-f = '/tigress/fdamani/neuro_output/5.5/switching_alpha_shared_model_kfold_leave_out_6/data/data.pth'
-data = torch.load(f)
+f = '../output/switching_alpha_shared_model_kfold_leave_out_6/model_structs/opt_params.pth'
+model_params = torch.load(f, map_location='cpu')
+f = '../output/switching_alpha_shared_model_kfold_leave_out_6/data/data.pth'
+data = torch.load(f, map_location='cpu')
 embed()
+
+model = LearningDynamicsModel(dim=7)
+model.

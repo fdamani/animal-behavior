@@ -270,7 +270,7 @@ if __name__ == '__main__':
         if v == False:
             opt_params[k] = model_params[k]
 
-    torch.save(data, output_file+'/data/data.pth')
+    torch.save(datasets, output_file+'/data/data.pth')
 
     ################### bootstrap ################################################
     num_datasets = 15

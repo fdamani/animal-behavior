@@ -70,6 +70,8 @@ for i in range(boots.shape[0]):
 	# compute standard error
 	standard_errors.append(np.std(boots[i],axis=0)) # of length number of parameters
 standard_errors = np.array(standard_errors)
+embed()
+
 plt.errorbar(np.arange(data_stat.shape[0]), data_stat[:,0], 2*standard_errors[:,0], linestyle='None', fmt='-o')
 plt.savefig(input_file+'/'+vble+'_feature0_'+'confidence_intervals.png', dpi=200)
 plt.cla()

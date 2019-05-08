@@ -366,6 +366,7 @@ class HeldOutRat(object):
         particles = torch.stack(particles)
         particles = particles[sampled_indices]
         unnorm_log_weights = []
+        running_marginal_ll = []
         for t in range(1,T):
             particles_t = []
             log_weights = []
@@ -374,28 +375,30 @@ class HeldOutRat(object):
                 concat_particle_i = torch.cat([particles[i], z_it], dim=0)
                 particles_t.append(concat_particle_i)
                 log_weights.append(self.model.log_likelihood(y[t], x[t], z_it))
-            if t == T-1:
-                unnorm_log_weights = torch.stack(log_weights)
+            #if t == T-1:
+            unnorm_log_weights = torch.stack(log_weights)
+            running_marginal_ll.append(math.log(1.0) - math.log(num_mc_samples) + torch.logsumexp(unnorm_log_weights, dim=0))
+ 
             log_weights = self.normalize_log_weights(torch.stack(log_weights))
             sampled_indices = self.multinomial_resampling(log_weights, num_mc_samples)
             del particles
             particles = torch.stack(particles_t)
             particles = particles[sampled_indices]
             del particles_t
-            if t % 5 == 0:
-                print t
+            print t
         expected_trajectory = torch.sum(torch.exp(log_weights)[:,None, None] * particles, dim=0)
         plt.plot(to_numpy(expected_trajectory))
         plt.savefig(output_file+'/'+str(fd)+'.png')
 
-        log_ll = []
-        for i in range(num_mc_samples):
-            log_ll.append(self.model.log_likelihood(y, x, particles[i]))
-        log_ll = torch.stack(log_ll)
+        # log_ll = []
+        # for i in range(num_mc_samples):
+        #     log_ll.append(self.model.log_likelihood(y, x, particles[i]))
+        # log_ll = torch.stack(log_ll)
 
-        marginal_lh = math.log(1.0) - math.log(num_mc_samples) + torch.logsumexp(log_ll, dim=0)
+        # marginal_lh = math.log(1.0) - math.log(num_mc_samples) + torch.logsumexp(log_ll, dim=0)
 
-        return marginal_lh
+        actual_lh = torch.sum(torch.stack(running_marginal_ll))
+        return actual_lh
 
     def normalize_log_weights(self, log_weights):
         '''

@@ -55,11 +55,13 @@ held_out_marginal_lhs = []
 for fd in folds:
 	rat = datafiles[fd]
 	f = '/tigress/fdamani/neuro_data/data/raw/allrats_withmissing_limitedtrials/csv/'
+	#f = '../data/'
+	#rat = 'W073.csv'
 	f += rat
 	num_obs_samples=1
 	x, y, rw = read_and_process(num_obs_samples, f, savedir=output_file)
 	T = 500
-	#T = 10
+	#T = 50
 	#num_particles = 100
 	num_particles = 1000
 	x = x[0:T]
@@ -73,6 +75,7 @@ for fd in folds:
 	ev = HeldOutRat([y, x], md)
 
 	model_params_file = '/tigress/fdamani/neuro_output/5.5/switching_alpha_shared_model_kfold_leave_out_'+str(int(fd))+'/model_structs/opt_params.pth'
+	
 	num_obs_samples=1
 	
 	if torch.cuda.is_available():
