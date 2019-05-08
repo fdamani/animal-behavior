@@ -47,7 +47,7 @@ datafiles = ['W065.csv', 'W066.csv', 'W068.csv', 'W072.csv', 'W073.csv', 'W074.c
 # rat = f.split('/')[-1].split('.csv')[0]
 # num_obs_samples=1
 #output_file += '/'+rat
-output_file += '/kfold_switching_alpha_results'
+output_file += '/kfold_multiple_gamma_results'
 os.makedirs(output_file)
 
 folds = np.arange(1, len(datafiles))
@@ -74,7 +74,7 @@ for fd in folds:
 	md = LearningDynamicsModel(dim)
 	ev = HeldOutRat([y, x], md)
 
-	model_params_file = '/tigress/fdamani/neuro_output/5.5/switching_alpha_shared_model_kfold_leave_out_'+str(int(fd))+'/model_structs/opt_params.pth'
+	model_params_file = '/tigress/fdamani/neuro_output/5.5/multiple_gamma_shared_model_kfold_leave_out_'+str(int(fd))+'/model_structs/opt_params.pth'
 	
 	num_obs_samples=1
 	
@@ -86,7 +86,7 @@ for fd in folds:
 	else:
 		model_params = torch.load(model_params_file, map_location='cpu')
 
-	switching_alpha = ev.eval_particle_filter(model_params, T, num_particles, True, output_file, fd) # -263.3014, -.526
+	switching_alpha = ev.eval_particle_filter(model_params, T, num_particles, False, output_file, fd) # -263.3014, -.526
 	held_out_marginal_lhs.append(switching_alpha.item())
 	print 'single alpha marginal lh: ', switching_alpha.item(), fd
 	np.savetxt(output_file+'/held_out_rat_marginal_lh.txt', np.array([held_out_marginal_lhs]))
