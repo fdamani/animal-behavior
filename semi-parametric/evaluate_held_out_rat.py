@@ -47,7 +47,7 @@ datafiles = ['W065.csv', 'W066.csv', 'W068.csv', 'W072.csv', 'W073.csv', 'W074.c
 # rat = f.split('/')[-1].split('.csv')[0]
 # num_obs_samples=1
 #output_file += '/'+rat
-output_file += '/kfold_multiple_gamma_results'
+output_file += '/kfold_single_alpha_results_2k'
 os.makedirs(output_file)
 
 folds = np.arange(1, len(datafiles))
@@ -60,7 +60,7 @@ for fd in folds:
 	f += rat
 	num_obs_samples=1
 	x, y, rw = read_and_process(num_obs_samples, f, savedir=output_file)
-	T = 500
+	T = 2000
 	#T = 50
 	#num_particles = 100
 	num_particles = 1000
@@ -74,7 +74,7 @@ for fd in folds:
 	md = LearningDynamicsModel(dim)
 	ev = HeldOutRat([y, x], md)
 
-	model_params_file = '/tigress/fdamani/neuro_output/5.5/multiple_gamma_shared_model_kfold_leave_out_'+str(int(fd))+'/model_structs/opt_params.pth'
+	model_params_file = '/tigress/fdamani/neuro_output/5.5/single_alpha_shared_model_kfold_leave_out_'+str(int(fd))+'/model_structs/opt_params.pth'
 	
 	num_obs_samples=1
 	
