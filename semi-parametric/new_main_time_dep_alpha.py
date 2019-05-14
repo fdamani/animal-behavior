@@ -136,7 +136,7 @@ if __name__ == '__main__':
     grad_model_params = False
     inference_types = ['map', 'mfvi', 'is', 'smc', 'vsmc']
     inference_type = inference_types[4]
-    sim = False
+    sim = True
     file_path = '/tigress/fdamani/neuro_output/'
     # file_path = 'output/'
     savedir = file_path
@@ -168,17 +168,33 @@ if __name__ == '__main__':
                             'log_alpha': False}        
         model_params = {'init_latent_loc': torch.tensor([0.0]*dim, dtype=dtype,  device=device, requires_grad=model_params_grad['init_latent_loc']),
                         'init_latent_log_scale': torch.tensor([math.log(1.0)]*dim, dtype=dtype, device=device, requires_grad=model_params_grad['init_latent_log_scale']),
-                        'transition_log_scale': torch.tensor([math.log(.05)], dtype=dtype, device=device, requires_grad=model_params_grad['transition_log_scale']),
+                        'transition_log_scale': torch.tensor([math.log(.0005)], dtype=dtype, device=device, requires_grad=model_params_grad['transition_log_scale']),
                         'log_gamma': torch.tensor([math.log(1e-20)], dtype=dtype, device=device, requires_grad=model_params_grad['log_gamma']),
                         'beta': torch.tensor([100.], dtype=dtype, device=device, requires_grad=model_params_grad['beta']),
-                        'log_alpha': torch.tensor([math.log(.05)], dtype=dtype, device=device, requires_grad=model_params_grad['log_alpha'])}
+                        'log_alpha': torch.tensor([math.log(.05), math.log(.05)], dtype=dtype, device=device, requires_grad=model_params_grad['log_alpha']),
+                        'alpha_log_diffusion_prior': torch.tensor([math.log(.01)], dtype=dtype, device=device, requires_grad=model_params_grad['log_alpha']),
+                        'alpha_decay_prior': torch.tensor([math.log(.99)], dtype=dtype, device=device, requires_grad=model_params_grad['log_alpha']),
+                        'log_alpha_init_latent_log_scale': torch.tensor([math.log(0.005)], dtype=dtype, device=device, requires_grad=model_params_grad['init_latent_log_scale']),
+                        'log_alpha_init_latent_loc': torch.tensor([math.log(0.01)], dtype=dtype, device=device, requires_grad=model_params_grad['init_latent_log_scale'])}
 
-
-        torch.save(model_params, output_file+'/model_structs/true_model_params.pth')
         model = LearningDynamicsModel(dim=dim)
         num_obs_samples = 1
-        y, x, z_true = model.sample(T=T, model_params=model_params, num_obs_samples=num_obs_samples, dim=dim)
-        
+        log_alpha = model.sample_gaussian_random_walk(T-1, 
+                                          model_params['log_alpha_init_latent_loc'], 
+                                          model_params['log_alpha_init_latent_log_scale'], 
+                                          model_params['alpha_log_diffusion_prior'], 
+                                          model_params['alpha_decay_prior'])
+        model_params['log_alpha'] = torch.tensor(log_alpha, dtype=dtype, device=device, requires_grad=model_params_grad['log_alpha'])
+        model_params['log_alpha_var_log_scale'] = log_scale = torch.tensor(-5 * torch.ones(T-1, dtype=dtype, device=device), requires_grad=True, dtype=dtype, device=device)
+        torch.save(model_params, output_file+'/model_structs/true_model_params.pth')
+
+
+        plt.cla()
+        plt.plot(np.exp(to_numpy(log_alpha)))
+        plt.savefig(output_file+'/plots/sim_alpha.png')
+        # plt.show()
+        # embed()
+        y, x, z_true = model.sample(T=T, model_params=model_params, num_obs_samples=num_obs_samples, dim=dim, x=None, switching=False, alpha_time_dep=True)
         rw = torch.mean(model.rat_reward_vec(y, x), dim=1)
 
         y = y.detach().cpu().numpy()
@@ -253,16 +269,31 @@ if __name__ == '__main__':
     
     model_params_grad = {'init_latent_loc': False,
                     'init_latent_log_scale': False,
-                    'transition_log_scale': True,
-                    'log_gamma': True,
+                    'transition_log_scale': False,
+                    'log_gamma': False,
                     'beta': False,
-                    'log_alpha': True}
+                    'log_alpha': True,
+                    'alpha_log_diffusion_prior': False,
+                    'alpha_decay_prior': False}
     model_params = {'init_latent_loc': torch.tensor([0.0]*dim, dtype=dtype,  device=device, requires_grad=model_params_grad['init_latent_loc']),
                     'init_latent_log_scale': torch.tensor([math.log(1.0)]*dim, dtype=dtype, device=device, requires_grad=model_params_grad['init_latent_log_scale']),
                     'transition_log_scale': torch.tensor([math.log(.05)], dtype=dtype, device=device, requires_grad=model_params_grad['transition_log_scale']),
-                    'log_gamma': torch.tensor([math.log(.05)]*dim, dtype=dtype, device=device, requires_grad=model_params_grad['log_gamma']),
+                    'log_gamma': torch.tensor([math.log(1e-20)], dtype=dtype, device=device, requires_grad=model_params_grad['log_gamma']),
                     'beta': torch.tensor([100.], dtype=dtype, device=device, requires_grad=model_params_grad['beta']),
-                    'log_alpha': torch.tensor([math.log(.05)], dtype=dtype, device=device, requires_grad=model_params_grad['log_alpha'])}
+                    'log_alpha': torch.tensor([math.log(.05)]*2, dtype=dtype, device=device, requires_grad=model_params_grad['log_alpha']),
+                    'alpha_log_diffusion_prior': torch.tensor([math.log(.01)], dtype=dtype, device=device, requires_grad=model_params_grad['alpha_log_diffusion_prior']),
+                    'alpha_decay_prior': torch.tensor([math.log(.99)], dtype=dtype, device=device, requires_grad=model_params_grad['alpha_decay_prior']),
+                    'log_alpha_init_latent_log_scale': torch.tensor([math.log(0.005)], dtype=dtype, device=device, requires_grad=model_params_grad['init_latent_log_scale']),
+                    'log_alpha_init_latent_loc': torch.tensor([math.log(0.01)], dtype=dtype, device=device, requires_grad=model_params_grad['init_latent_log_scale'])}
+
+
+    #model_params['log_alpha'] = torch.tensor(log_alpha, dtype=dtype, device=device, requires_grad=model_params_grad['log_alpha'])
+    
+    model_params['log_alpha'] = torch.tensor(-3 * torch.ones(T-1, 1, dtype=dtype,device=device), dtype=dtype, device=device, requires_grad=model_params_grad['log_alpha'])
+
+    #model_params['log_alpha_var_log_scale'] = log_scale = torch.tensor(-5 * torch.ones(T-1, 1, dtype=dtype, device=device), requires_grad=True, dtype=dtype, device=device)
+
+
     # [math.log(.05)]*2
     torch.save(model_params_grad, output_file+'/model_structs/model_params_grad.pth')
     torch.save(model_params, output_file+'/model_structs/init_model_params.pth')

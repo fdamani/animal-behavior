@@ -1,3 +1,12 @@
+5/11
+todo
+in synthetic data
+1. show we can recover reward-dependent learning rates - X.
+2. time-varying alpha (variational posterior over alpha)
+
+
+
+==========================================
 finish heirarchiacl model code.
 - run for reward-dependent learning leave 5 different rats out
 	- make sure we are computing uncertainty estimates by leaving a rat out.
