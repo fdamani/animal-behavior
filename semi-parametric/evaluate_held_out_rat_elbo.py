@@ -47,49 +47,60 @@ datafiles = ['W065.csv', 'W066.csv', 'W068.csv', 'W072.csv', 'W073.csv', 'W074.c
 # rat = f.split('/')[-1].split('.csv')[0]
 # num_obs_samples=1
 #output_file += '/'+rat
-output_file += '/kfold_single_alpha_results_2k'
+output_file += '/test_elbo_held_out'
+#output_file += '_'+str(datetime.datetime.now())
+output_file += '_'+str(datetime.datetime.now())
 os.makedirs(output_file)
+os.makedirs(output_file+'/model_structs')
+os.makedirs(output_file+'/data')
+os.makedirs(output_file+'/plots')
+savedir = output_file
+#os.makedirs(output_file)
 
 folds = np.arange(1, len(datafiles))
 held_out_marginal_lhs = []
 for fd in folds:
-	rat = datafiles[fd]
-	f = '/tigress/fdamani/neuro_data/data/raw/allrats_withmissing_limitedtrials/csv/'
-	#f = '../data/'
-	#rat = 'W073.csv'
-	f += rat
-	num_obs_samples=1
-	x, y, rw = read_and_process(num_obs_samples, f, savedir=output_file)
-	T = 2000
-	#T = 50
-	#num_particles = 100
-	num_particles = 1000
-	x = x[0:T]
-	y = y[0:T]
+    rat = datafiles[fd]
+    #f = '/tigress/fdamani/neuro_data/data/raw/allrats_withmissing_limitedtrials/csv/'
+    f = '../data/'
+    rat = 'W073.csv'
+    f += rat
+    num_obs_samples=1
+    x, y, rw = read_and_process(num_obs_samples, f, savedir=output_file)
+    T = 2000
+    #T = 50
+    #num_particles = 100
+    num_particles = 1000
+    x = x[0:T]
+    y = y[0:T]
 
-	x = torch.tensor(x, dtype=dtype, device=device)
-	y = torch.tensor(y, dtype=dtype, device=device)
-	data = [y, x, y, x, y, x, y]
+    x = torch.tensor(x, dtype=dtype, device=device)
+    y = torch.tensor(y, dtype=dtype, device=device)
+    data = [y, x, None, x, y, x, y]
 
-	dim = x.shape[-1]
-	md = LearningDynamicsModel(dim)
-
-
-	ev = HeldOutRat([y, x], md)
-
-	model_params_file = '/tigress/fdamani/neuro_output/5.5/single_alpha_shared_model_kfold_leave_out_'+str(int(fd))+'/model_structs/opt_params.pth'
-	
-	num_obs_samples=1
-	
-	if torch.cuda.is_available():
-		try:
-			model_params = torch.load(model_params_file)
-		except:
-			continue
-	else:
-		model_params = torch.load(model_params_file, map_location='cpu')
+    dim = x.shape[-1]
+    md = LearningDynamicsModel(dim)
 
 
+    ev = HeldOutRat([y, x], md)
+
+    #model_params_file = '/tigress/fdamani/neuro_output/5.5/single_alpha_shared_model_kfold_leave_out_'+str(int(fd))+'/model_structs/opt_params.pth'
+    model_params_file = '../output/single_alpha_shared_model_kfold_leave_out_6/model_structs/opt_params.pth'
+    model_params_grad_file = '../output/single_alpha_shared_model_kfold_leave_out_6/model_structs/model_params_grad.pth'
+
+    num_obs_samples=1
+    
+    if torch.cuda.is_available():
+        try:
+            model_params = torch.load(model_params_file)
+            model_params_grad = torch.load(model_params_grad_file)
+        except:
+            continue
+    else:
+        model_params = torch.load(model_params_file, map_location='cpu')
+        model_params_grad = torch.load(model_params_grad_file, map_location='cpu')
+    for k,v in model_params_grad.items():
+        model_params_grad[k] = False
 
     inference = Inference(data,
                           md,
@@ -114,8 +125,8 @@ for fd in folds:
 
 
 
-	switching_alpha = ev.eval_particle_filter(model_params, T, num_particles, False, output_file, fd) # -263.3014, -.526
-	held_out_marginal_lhs.append(switching_alpha.item())
-	print 'single alpha marginal lh: ', switching_alpha.item(), fd
-	np.savetxt(output_file+'/held_out_rat_marginal_lh.txt', np.array([held_out_marginal_lhs]))
+    switching_alpha = ev.eval_particle_filter(model_params, T, num_particles, False, output_file, fd) # -263.3014, -.526
+    held_out_marginal_lhs.append(switching_alpha.item())
+    print 'single alpha marginal lh: ', switching_alpha.item(), fd
+    np.savetxt(output_file+'/held_out_rat_marginal_lh.txt', np.array([held_out_marginal_lhs]))
 

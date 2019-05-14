@@ -160,7 +160,7 @@ class LearningDynamicsModel(object):
         obs = Bernoulli(logits=logits_train)
         return torch.sum(obs.log_prob(y[train_inds]))
 
-    def log_prior_vec(self, model_params, z, y, x, switching=True):
+    def log_prior_vec(self, model_params, z, y, x, switching=False):
         '''
             input: z_1:t
             parameterize p(z_t | z_t-1, theta)

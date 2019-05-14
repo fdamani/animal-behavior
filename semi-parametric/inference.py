@@ -161,11 +161,15 @@ class Inference(object):
         # self.var_params_model = self.vi.init_var_params_model()
         # self.opt_params['model_mu'] = self.var_params_model[0]
         # self.opt_params['model_log_scale'] = self.var_params_model[1]
+        self.test = self.data[2]
 
-
-        self.ev = Evaluate(self.data, self.model, savedir='', num_obs_samples=self.num_obs_samples)
-        self.num_test = self.data[2].shape[0]
-        self.num_train = self.data[0].shape[0] - self.num_test
+        if self.test is None:
+            self.ev = None
+            self.num_train = self.data[0].shape[0]
+        else:
+            self.ev = Evaluate(self.data, self.model, savedir='', num_obs_samples=self.num_obs_samples)
+            self.num_test = self.data[2].shape[0]
+            self.num_train = self.data[0].shape[0] - self.num_test
     def unpack_data(self, data):
         y = data[0]
         x = data[1]
@@ -206,8 +210,9 @@ class Inference(object):
 
     def run(self):
         self.optimizer = torch.optim.SGD(self.opt_params.values(), momentum=0.99, lr=1e-6) # .99, 1e-6
+        embed()
         #return self.optimize(50000, False, 1000)
-        return self.optimize(1005, False, 1000)
+        return self.optimize(2000, False, 1000)
 
     def optimize(self, iters, lbfgs, print_every):
         y, x = self.train_data[0], self.train_data[1]
@@ -249,11 +254,12 @@ class Inference(object):
                             for el in self.opt_params[k].flatten():
                                 print k, '%.3f ' % el.item(),
                 print '\n'
-                test_marginal = self.ev.valid_loss(self.opt_params)
+                if self.ev is not None:
+                    test_marginal = self.ev.valid_loss(self.opt_params)
                 #y_future, future_trajectories, avg_future_marginal_lh = self.ev.sample_future_trajectory(self.opt_params, self.num_future_steps)
-                train_acc, test_acc = self.ev.accuracy(self.opt_params)
-                print 'train acc: %.3f ' % train_acc.item(), 'test acc: %.3f ' % test_acc.item(), \
-                     'test marginal likelihood: %.3f ' % test_marginal#, 'future marginal lh: %.3f' % avg_future_marginal_lh.item()
+                    train_acc, test_acc = self.ev.accuracy(self.opt_params)
+                    print 'train acc: %.3f ' % train_acc.item(), 'test acc: %.3f ' % test_acc.item(), \
+                        'test marginal likelihood: %.3f ' % test_marginal#, 'future marginal lh: %.3f' % avg_future_marginal_lh.item()
 
                 # plotting
                 plt.cla()
@@ -291,18 +297,20 @@ class Inference(object):
                 # plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
                 plt.savefig(self.savedir+'/plots/curr_est_z.png')
                 test_inds = self.data[-4].cpu().numpy()
-                zx_test = zx[test_inds]
-                plt.cla()
-                for j in range(zx_scale.shape[1]):
-                    #plt.plot(zx_test[:,j], label=labels[j], linewidth=.5)
-                    plt.plot(zx_test[:,j], linewidth=.5)
+                if self.ev is not None:
+                    zx_test = zx[test_inds]
+                    plt.cla()
+                    for j in range(zx_scale.shape[1]):
+                        #plt.plot(zx_test[:,j], label=labels[j], linewidth=.5)
+                        plt.plot(zx_test[:,j], linewidth=.5)
 
-                plt.savefig(self.savedir+'/plots/curr_est_test_z.png')
+                    plt.savefig(self.savedir+'/plots/curr_est_test_z.png')
 
 
-        test_marginal = self.ev.valid_loss(self.opt_params)
-        np.savetxt(self.savedir+'/test_marginal.txt', np.array([test_marginal.item()]))
-        print 'final test marginal: ', test_marginal.item()
+        if self.ev is not None:
+            test_marginal = self.ev.valid_loss(self.opt_params)
+            np.savetxt(self.savedir+'/test_marginal.txt', np.array([test_marginal.item()]))
+            print 'final test marginal: ', test_marginal.item()
             # detach and clone all params
         for k in self.opt_params.keys():
             self.opt_params[k] = self.opt_params[k].clone().detach()
