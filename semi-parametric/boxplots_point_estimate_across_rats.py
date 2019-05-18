@@ -36,13 +36,13 @@ import utils
 from utils import sigmoid
 #dtype = torch.cuda.float if torch.cuda.is_available() else torch.float
 dtype = torch.float32
-input_file = '/tigress/fdamani/neuro_output/5.5/switching_alpha/'
-
+#input_file = '/tigress/fdamani/neuro_output/5.5/switching_alpha/'
+input_file = '/tigress/fdamani/neuro_output/5.5/multiple_gamma_single_alpha/'
 import os
 boots = []
 rats = []
-#vble = 'log_gamma'
-vble = 'log_alpha'
+vble = 'log_gamma'
+#vble = 'log_alpha'
 #vble = 'transition_log_scale'
 for file in os.listdir(input_file):
 	rats.append(file)
